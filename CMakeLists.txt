@@ -5,3 +5,4 @@ set(CMAKE_CXX_STANDARD 23)
 
 add_executable(PlanetFormation2 main.cpp
         barnes_hut.h)
+

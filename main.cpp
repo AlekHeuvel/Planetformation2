@@ -6,13 +6,15 @@
 #include <fstream>
 #include <omp.h>
 #include <array>
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra-tokens"
 using namespace std;
 using namespace Eigen;
 
 double ROOT_SIZE = 150e9;
 const Vector3d NORMAL_VECTOR(0, 0, 1);
 double solarMass = 1.989e30;
-const int n_particles = 100;
+const int n_particles = 1000;
 vector<Vector3d>  force = {};
 int counter;
 
@@ -87,7 +89,7 @@ int main() {
         particles[j].velocity += force[j] / particles[j].mass * dt;
     }
     omp_set_num_threads(10);
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 10; i++) {
         // Full-step position update
         for (Particle &particle: particles) {
             particle.position += particle.velocity * dt;
@@ -111,6 +113,7 @@ int main() {
             particles[j].velocity += force[j] / particles[j].mass * dt;
         }
 
+        root.collisionDetection();
         t += dt;
 
 
@@ -126,3 +129,5 @@ int main() {
     cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
 }
 
+
+#pragma clang diagnostic pop
