@@ -5,7 +5,7 @@
 #include <omp.h>
 #include <cmath>
 #include "Eigen/Dense"
-#include "barnes_hut.h" // Make sure this is correctly included
+#include "barnes_hut.h"
 
 using namespace std;
 using namespace Eigen;
