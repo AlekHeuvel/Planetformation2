@@ -1,28 +1,37 @@
 #include <iostream>
-#include "barnes_hut.h"
-#include "Eigen/Dense"
-#include <chrono>
 #include <random>
 #include <fstream>
+#include <chrono>
 #include <omp.h>
-#include <array>
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wextra-tokens"
+#include <cmath>
+#include "Eigen/Dense"
+#include "barnes_hut.h" // Make sure this is correctly included
+
 using namespace std;
 using namespace Eigen;
 
-double ROOT_SIZE = 150e9;
-const Vector3d NORMAL_VECTOR(0, 0, 1);
-double solarMass = 1.989e30;
+const double solarMass = 1.989e30;
+const double earthMass = 5.972e27;
+const double density = 3e6; //bulk density g/m^3
+const double AU = 149.6e9;
 const int n_particles = 1000;
-vector<Vector3d>  force = {};
-int counter;
+const double ROOT_SIZE = 100 * AU;
+vector<Vector3d> force = {};
 
-Vector3d get_velocity_circular_orbit(const Vector3d& position) {
-    double norm = position.norm();
-    double velocityMagnitude = sqrt(solarMass * G / pow(norm, 3));
-    Vector3d circularVelocity = velocityMagnitude * NORMAL_VECTOR.cross(position);
-    return circularVelocity;
+std::random_device rd;  // Obtain a random number from hardware
+std::mt19937 gen(rd()); // Seed the generator
+std::uniform_real_distribution<> dis_eccentricity(0.0, 0.01); // Eccentricity range
+std::uniform_real_distribution<> dis_angle(0.0, 2 * M_PI); // Angle range
+std::uniform_real_distribution<> embryo_mass(0.01*earthMass, 0.11*earthMass); // Eccentricity range
+
+const Vector3d NORMAL_VECTOR(0, 0, 1);
+
+Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double eccentricity) {
+    double semiMajorAxis = position.norm() / (1 - eccentricity);
+    double velocityMagnitude = sqrt(G * solarMass * (2 / position.norm() - 1 / semiMajorAxis));
+    Vector3d velocity = velocityMagnitude * NORMAL_VECTOR.cross(position).normalized();
+
+    return velocity;
 }
 
 void saveParticlesToCSV(const vector<Particle>& particles, const string& filename, int timestep) {
@@ -44,30 +53,67 @@ void saveParticlesToCSV(const vector<Particle>& particles, const string& filenam
     file.close();
 }
 
+bool isTooClose(const Vector3d& pos, const vector<Particle>& particles, double minDistance) {
+    for (const auto& particle : particles) {
+        if ((particle.position - pos).norm() < minDistance) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int main() {
     // empty data.csv
     ofstream file("data.csv");
     file.close();
 
-    uniform_real_distribution<double> unif(-ROOT_SIZE, ROOT_SIZE); // the range of the random numbers -300e9 to 300e9
-    default_random_engine re;
-
     vector<Particle> particles = {};
+
+    const double inner_radius = 1.0 * AU; // Define the inner radius of the disk
+    const double outer_radius = 50.0 * AU; // Define the outer radius of the disk
+    const double exponent = -1.5; // Power law exponent
+
+    for (int i = 0; i < n_particles; i++) {
+        Vector3d pos, vel;
+        double mass, radius;
+        bool positionOK;
+
+        do {
+            // Generate a random number for the power law distribution
+            double rand_num = static_cast<double>(rand()) / RAND_MAX;
+            double semiMajorAxis = pow((pow(outer_radius, exponent + 1) - pow(inner_radius, exponent + 1)) * rand_num + pow(inner_radius, exponent + 1), 1.0 / (exponent + 1));
+
+            // Generate a random angle for uniform distribution around the disk
+            double angle = dis_angle(gen);
+
+            // Calculate position in Cartesian coordinates
+            pos = Vector3d(semiMajorAxis * cos(angle), semiMajorAxis * sin(angle), 0);
+
+            // Generate a random eccentricity for each particle
+            double eccentricity = dis_eccentricity(gen);
+
+            // Calculate velocity for elliptical orbit
+            vel = get_velocity_elliptical_orbit(pos, eccentricity);
+
+            mass = embryo_mass(gen);
+            radius = pow(3/(4 * M_PI * density) * mass, 1.0/3.0);
+
+            // Check if the position is too close to other particles
+            positionOK = !isTooClose(pos, particles, radius * 10); // Using 2 * radius as minimum distance
+        } while (!positionOK);
+
+        // Add particle to the list with the correct velocity
+        particles.push_back(Particle(pos, vel, mass, radius));
+    }
 
     // Creating sun
     Vector3d sunPos = Vector3d::Zero();
     Vector3d sunVel = Vector3d::Zero();
     particles.push_back(Particle(sunPos, sunVel, solarMass, 7e8));
 
-    // Creating rest of the particles
-    for (int i = 0; i < n_particles-1; i++) {
-        Vector3d pos = VectorXd::Random(DIM) * ROOT_SIZE/2 / 2;
-        Vector3d vel = get_velocity_circular_orbit(pos);
-        particles.push_back(Particle(pos, vel, 6e24, 6e6));
-    }
-
     // Setting up timing and time steps
     double t = 0;
+    double dt = 1e5; // Time step in seconds
     auto start = chrono::high_resolution_clock::now();
     Vector3d ROOT_LOWER = {-ROOT_SIZE, -ROOT_SIZE, -ROOT_SIZE};
     Vector3d ROOT_UPPER = {ROOT_SIZE, ROOT_SIZE, ROOT_SIZE};
@@ -83,13 +129,12 @@ int main() {
 
     for (const Particle &particle: particles) {
         force.push_back(root.getForceWithParticle(particle));
-//            cout << root.getForceWithParticle(particle) << endl;
     }
     for (int j = 0; j < particles.size(); j++) {
         particles[j].velocity += force[j] / particles[j].mass * dt;
     }
     omp_set_num_threads(10);
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 1000; i++) {
         // Full-step position update
         for (Particle &particle: particles) {
             particle.position += particle.velocity * dt;
@@ -108,26 +153,31 @@ int main() {
             force[j] = new_root.getForceWithParticle(particles[j]);
         }
 
+        root.collisionDetection();
+
         // Final half-step velocity update
         for (int j = 0; j < particles.size(); j++) {
             particles[j].velocity += force[j] / particles[j].mass * dt;
         }
 
-        root.collisionDetection();
-        t += dt;
 
+        t += dt;
 
         if(i % 1 == 0) {
             cout << i << endl;
             saveParticlesToCSV(particles, "data.csv", i);
-
+            //double E;
+            //E = 0;
+            //for (int j = 0; j < particles.size(); j++) {
+            //    E += 0.5 * particles[j].mass * particles[j].velocity.norm();
+            //    for (int k = j+1; k < particles.size(); k++) {
+            //        E += -(G * particles[j].mass * particles[k].mass)/sqrt((particles[j].position-particles[k].position).norm());
+            //    }
+            //}
+            //cout << E << endl;
         }
-
     }
 
     auto end = chrono::high_resolution_clock::now();
     cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
 }
-
-
-#pragma clang diagnostic pop

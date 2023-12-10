@@ -8,10 +8,10 @@ width, height = 1400, 750
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Particle Simulation")
 clock = pygame.time.Clock()
-
+AU = 149.6e9
 
 # Function to convert simulation coordinates to screen coordinates
-def to_screen_coords(pos, scale=300e9 / height):
+def to_screen_coords(pos, scale=5*AU / height):
     coords = int(width / 2 + pos[0] / scale), int(height / 2 - pos[1] / scale)
     return coords
 
@@ -45,12 +45,13 @@ for i in range(data['Timestep'].max() + 1):
         print(f"{particle_pos}")
         pygame.draw.circle(screen, (255, 0, 0), particle_pos, 5)
 
+    pygame.display.flip()
     # Draw the sun at the center
     # pygame.draw.circle(screen, (255, 255, 0), to_screen_coords(np.array([0, 0])), 10)
 
     # Update the display
-    pygame.display.flip()
+
 
     # Cap the frame rate
-    clock.tick(5)
+    clock.tick()
 pygame.quit()

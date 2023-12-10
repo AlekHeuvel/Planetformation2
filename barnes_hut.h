@@ -8,7 +8,7 @@
 using namespace std;
 using namespace Eigen;
 
-const int dt = 1e5;
+const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
 const double THETA = 1; // Radians
@@ -118,7 +118,12 @@ public:
         } else {
             Vector3d r = particle.position - centreOfMass;
             double distance = r.norm();
-            return -G * mass * particle.mass * r / pow(distance, 3);
+
+            // Softening factor (epsilon), choose an appropriate value
+            const double epsilon = 1e7; // Example value, adjust as needed
+
+            // Modified gravitational force equation with softening
+            return -G * mass * particle.mass * r / (pow(distance * distance + epsilon * epsilon, 1.5));
         }
     }
 
@@ -139,6 +144,7 @@ public:
     }
 
     static bool particleCollision(Particle& particle1, Particle& particle2) {
+
         Vector3d dx = particle1.position - particle2.position;
         Vector3d dv = particle1.velocity - particle2.velocity;
 
@@ -148,31 +154,14 @@ public:
         // Using the sum of radii directly in the calculation
         double radiiSum = particle1.radius + particle2.radius;
         double radiiSumSquared = radiiSum * radiiSum;
+        if (dxNormSquared*dvNormSquared - pow(dx.dot(dv),2) - radiiSumSquared*dvNormSquared < 0)  {
 
-        double dxdv = dx.dot(dv);
-        // Directly using multiplied terms in the discriminant calculation
-        double discriminant = dxdv * dxdv - dxNormSquared * (dvNormSquared * radiiSumSquared - dxNormSquared);
-
-        if (discriminant < 0) {
-            return false; // No collision possible
+            if ( 0 < - dx.dot(dv) < dt * dvNormSquared) {
+                cout << "collision" << endl;
+                return true;
+            }
         }
-        double discriminantRoot = sqrt(discriminant);
-        double denominator = dvNormSquared * radiiSumSquared - 2 * dxdv;
-
-        if (denominator == 0) {
-            return false; // Avoid division by zero
-        }
-
-        double t12 = -discriminantRoot / denominator;
-
-        if (t12 <= 0 || t12 >= dt) {
-            return false; // No collision within the time step
-        }
-
-        // Collision detected
-        cout << "Collision detected at t = " << t12 << endl;
-        return true;
-        // Handle collision here}
+        return false;
 }
 
 
