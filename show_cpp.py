@@ -11,7 +11,7 @@ clock = pygame.time.Clock()
 AU = 149.6e9
 
 # Function to convert simulation coordinates to screen coordinates
-def to_screen_coords(pos, scale=5*AU / height):
+def to_screen_coords(pos, scale=20*AU / height):
     coords = int(width / 2 + pos[0] / scale), int(height / 2 - pos[1] / scale)
     return coords
 
@@ -42,7 +42,7 @@ for i in range(data['Timestep'].max() + 1):
     for particle in data[data['Timestep'] == i].values:
         particle_pos = particle[1:4]
         particle_pos = to_screen_coords(particle_pos)
-        print(f"{particle_pos}")
+        #print(f"{particle_pos}")
         pygame.draw.circle(screen, (255, 0, 0), particle_pos, 5)
 
     pygame.display.flip()
@@ -53,5 +53,5 @@ for i in range(data['Timestep'].max() + 1):
 
 
     # Cap the frame rate
-    clock.tick()
+    clock.tick(10)
 pygame.quit()

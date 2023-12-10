@@ -12,12 +12,13 @@ const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
 const double THETA = 1; // Radians
+const double density = 3e6; //bulk density g/m^3
 
 struct Particle {
     mutable Vector3d position;
     mutable Vector3d velocity;
-    const double mass;
-    const double radius;
+    double mass;
+    double radius;
     bool operator==(const Particle& other) const = default;
 };
 
@@ -127,20 +128,103 @@ public:
         }
     }
 
-    void collisionDetection() {
+    static Particle mergeParticles(const Particle& p1, const Particle& p2) {
+        double totalMass = p1.mass + p2.mass;
+        Vector3d newPosition = (p1.position * p1.mass + p2.position * p2.mass) / totalMass;
+        Vector3d newVelocity = (p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
+
+        // Assuming radius is proportional to the cube root of mass
+        double newRadius = pow(3/(4 * M_PI * density) * totalMass, 1.0/3.0);
+
+        return Particle(newPosition, newVelocity, totalMass, newRadius);
+    }
+
+    void rebuildTree(vector<Particle>& particles, Node& root) {
+        // Create a new root node with the same boundaries as the old root
+        Node newRoot(root.lowerBound, root.upperBound);
+
+        // Add all particles to the new tree
+        for (const Particle& particle : particles) {
+            newRoot.addParticle(particle);
+        }
+
+        // Set the mass and center of mass for the new tree
+        newRoot.setMass();
+        newRoot.setCentreOfMass();
+
+        // Replace the old root with the new one
+        root = std::move(newRoot);
+    }
+
+    bool collisionDetection(vector<Particle>& allParticles, set<Particle*>& processedParticles) {
+        bool collisionOccurred = false;
+        vector<pair<int, int>> collidingPairs;
+
         for (Node& child : children) {
             if (child.particles.size() > 1) {
-                for (int i = 0; i < particles.size(); i++) {
-                    for (int j = i; j < particles.size(); j++) {
-                        particleCollision(particles[i], particles[j]);
+                for (int i = 0; i < child.particles.size(); i++) {
+                    Particle& p1 = child.particles[i];
+
+                    // Skip if this particle has already been processed
+                    if (processedParticles.find(&p1) != processedParticles.end()) {
+                        continue;
+                    }
+
+                    for (int j = i + 1; j < child.particles.size(); j++) {
+                        Particle& p2 = child.particles[j];
+
+                        // Skip if this particle has already been processed
+                        if (processedParticles.find(&p2) != processedParticles.end()) {
+                            continue;
+                        }
+
+                        if (particleCollision(p1, p2)) {
+                            // Record the indices of colliding particles
+                            collidingPairs.emplace_back(i, j);
+
+                            // Update processed particles set
+                            processedParticles.insert(&p1);
+                            processedParticles.insert(&p2);
+
+                            collisionOccurred = true;
                         }
                     }
-                break;
                 }
-            else {
-                child.collisionDetection();
             }
         }
+
+        // Process all collisions
+        for (const auto& pair : collidingPairs) {
+            int idx1 = pair.first;
+            int idx2 = pair.second;
+
+            Particle& p1 = allParticles[idx1];
+            Particle& p2 = allParticles[idx2];
+
+            Particle mergedParticle = mergeParticles(p1, p2);
+            // Add the merged particle to the list
+            allParticles.push_back(mergedParticle);
+        }
+
+        // Remove collided particles
+        set<int> removeIndices;
+        for (const auto& pair : collidingPairs) {
+            removeIndices.insert(pair.first);
+            removeIndices.insert(pair.second);
+        }
+
+        // Create a new vector for the non-collided particles
+        vector<Particle> newParticles;
+        for (int i = 0; i < allParticles.size(); i++) {
+            if (removeIndices.find(i) == removeIndices.end()) {
+                newParticles.push_back(allParticles[i]);
+            }
+        }
+
+        // Replace the old particle vector with the new one
+        allParticles = std::move(newParticles);
+
+        return collisionOccurred;
     }
 
     static bool particleCollision(Particle& particle1, Particle& particle2) {
@@ -162,7 +246,7 @@ public:
             }
         }
         return false;
-}
+    }
 
 
 private:
