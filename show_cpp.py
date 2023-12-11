@@ -1,6 +1,5 @@
 import pygame
 import pandas as pd
-import numpy as np
 
 # Pygame setup
 pygame.init()
@@ -11,7 +10,7 @@ clock = pygame.time.Clock()
 AU = 149.6e9
 
 # Function to convert simulation coordinates to screen coordinates
-def to_screen_coords(pos, scale=20*AU / height):
+def to_screen_coords(pos, scale=4*AU / height):
     coords = int(width / 2 + pos[0] / scale), int(height / 2 - pos[1] / scale)
     return coords
 
@@ -22,10 +21,11 @@ def read_particle_data(filename):
 
     return df
 
-
 data = read_particle_data("data.csv")
+unique_timesteps = data['Timestep'].unique()  # Get unique timesteps
+
 running = True
-for i in range(data['Timestep'].max() + 1):
+for timestep in unique_timesteps:
 
     # Event handler
     for event in pygame.event.get():
@@ -39,19 +39,17 @@ for i in range(data['Timestep'].max() + 1):
     screen.fill((0, 0, 0))
 
     # Draw the particles
-    for particle in data[data['Timestep'] == i].values:
-        particle_pos = particle[1:4]
+    for particle in data[data['Timestep'] == timestep].values:
+        particle_pos = particle[1:3]  # Only X and Y coordinates
         particle_pos = to_screen_coords(particle_pos)
-        #print(f"{particle_pos}")
         pygame.draw.circle(screen, (255, 0, 0), particle_pos, 5)
 
-    pygame.display.flip()
-    # Draw the sun at the center
+    # Draw the sun at the center (optional)
     # pygame.draw.circle(screen, (255, 255, 0), to_screen_coords(np.array([0, 0])), 10)
 
-    # Update the display
-
+    pygame.display.flip()
 
     # Cap the frame rate
-    clock.tick(10)
+    clock.tick(100)
+
 pygame.quit()

@@ -11,8 +11,8 @@ using namespace Eigen;
 const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
-const double THETA = 1; // Radians
-const double density = 3e6; //bulk density g/m^3
+const double THETA = 0.5; // Radians
+const double density = 3e3; //bulk density kg/m^3
 
 struct Particle {
     mutable Vector3d position;
@@ -170,7 +170,7 @@ public:
                         continue;
                     }
 
-                    for (int j = i + 1; j < child.particles.size(); j++) {
+                    for (int j = 0; j < child.particles.size(); j++) {
                         Particle& p2 = child.particles[j];
 
                         // Skip if this particle has already been processed
@@ -181,6 +181,7 @@ public:
                         if (particleCollision(p1, p2)) {
                             // Record the indices of colliding particles
                             collidingPairs.emplace_back(i, j);
+
 
                             // Update processed particles set
                             processedParticles.insert(&p1);
@@ -200,6 +201,7 @@ public:
 
             Particle& p1 = allParticles[idx1];
             Particle& p2 = allParticles[idx2];
+
 
             Particle mergedParticle = mergeParticles(p1, p2);
             // Add the merged particle to the list
@@ -227,24 +229,39 @@ public:
         return collisionOccurred;
     }
 
-    static bool particleCollision(Particle& particle1, Particle& particle2) {
-
+    static bool particleCollision(const Particle& particle1, const Particle& particle2) {
         Vector3d dx = particle1.position - particle2.position;
         Vector3d dv = particle1.velocity - particle2.velocity;
+
 
         double dxNormSquared = dx.squaredNorm();
         double dvNormSquared = dv.squaredNorm();
 
         // Using the sum of radii directly in the calculation
         double radiiSum = particle1.radius + particle2.radius;
-        double radiiSumSquared = radiiSum * radiiSum;
-        if (dxNormSquared*dvNormSquared - pow(dx.dot(dv),2) - radiiSumSquared*dvNormSquared < 0)  {
 
-            if ( 0 < - dx.dot(dv) < dt * dvNormSquared) {
-                cout << "collision" << endl;
-                return true;
+        double radiiSumSquared = pow(radiiSum,2);
+
+        // Calculate the closest approach
+        double d = (dxNormSquared*dvNormSquared - pow(dx.dot(dv), 2)) / dvNormSquared;
+        if (d < 0) {
+            return false;
+        }
+
+        // Check if the distance at the closest approach is less than the sum of the radii
+        if (d < radiiSumSquared) {
+            // Additional check for the particles moving towards each other
+            if (-dx.dot(dv) > 0) {
+                //
+                if (-dx.dot(dv)/dvNormSquared < dt){
+                    //cout<< -dx.dot(dv)/dvNormSquared << endl;
+
+                    cout << "collision" << endl;
+                    return true;
+                }
             }
         }
+
         return false;
     }
 

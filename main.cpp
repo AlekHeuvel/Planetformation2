@@ -12,21 +12,22 @@ using namespace std;
 using namespace Eigen;
 
 const double solarMass = 1.989e30;
-const double earthMass = 5.972e27;
+const double earthMass = 5.972e24;
 const double AU = 149.6e9;
-const int n_particles = 10000;
-const double ROOT_SIZE = 100 * AU;
+const int n_particles = 5000;
+const double ROOT_SIZE = 10 * AU;
 vector<Vector3d> force = {};
 
 std::random_device rd;  // Obtain a random number from hardware
 std::mt19937 gen(rd()); // Seed the generator
 std::uniform_real_distribution<> dis_eccentricity(0.0, 0.01); // Eccentricity range
 std::uniform_real_distribution<> dis_angle(0.0, 2 * M_PI); // Angle range
-std::uniform_real_distribution<> embryo_mass(0.01*earthMass, 0.11*earthMass); // Eccentricity range
+std::uniform_real_distribution<> embryo_mass(0.01*earthMass, 0.11*earthMass);
 
 const Vector3d NORMAL_VECTOR(0, 0, 1);
 
 Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double eccentricity) {
+    double rand_num = static_cast<double>(rand()) / RAND_MAX;
     double semiMajorAxis = position.norm() / (1 - eccentricity);
     double velocityMagnitude = sqrt(G * solarMass * (2 / position.norm() - 1 / semiMajorAxis));
     Vector3d velocity = velocityMagnitude * NORMAL_VECTOR.cross(position).normalized();
@@ -69,8 +70,8 @@ int main() {
 
     vector<Particle> particles = {};
 
-    const double inner_radius = 1.0 * AU; // Define the inner radius of the disk
-    const double outer_radius = 25 * AU; // Define the outer radius of the disk
+    const double inner_radius = 0.5 * AU; // Define the inner radius of the disk
+    const double outer_radius = 4 * AU; // Define the outer radius of the disk
 
     for (int i = 0; i < n_particles; i++) {
         Vector3d pos, vel;
@@ -81,7 +82,7 @@ int main() {
             // Generate a random number for the power law distribution
             double rand_num = static_cast<double>(rand()) / RAND_MAX;
             //double semiMajorAxis = pow((pow(outer_radius, exponent + 1) - pow(inner_radius, exponent + 1)) * rand_num + pow(inner_radius, exponent + 1), 1.0 / (exponent + 1));
-            double dr = 10e7;
+            double dr = 1e9;
             double semiMajorAxis = inner_radius + dr *(pow((rand_num*(sqrt(outer_radius) - sqrt(inner_radius))+sqrt(inner_radius)),2) - inner_radius)/dr;
             // Generate a random angle for uniform distribution around the disk
             double angle = dis_angle(gen);
@@ -99,7 +100,7 @@ int main() {
             radius = pow(3/(4 * M_PI * density) * mass, 1.0/3.0);
 
             // Check if the position is too close to other particles
-            positionOK = !isTooClose(pos, particles, radius); // Using 2 * radius as minimum distance
+            positionOK = !isTooClose(pos, particles, radius*10); // Using 10 * radius as minimum distance
         } while (!positionOK);
 
         // Add particle to the list with the correct velocity
@@ -113,7 +114,6 @@ int main() {
 
     // Setting up timing and time steps
     double t = 0;
-    double dt = 1e5; // Time step in seconds
     auto start = chrono::high_resolution_clock::now();
     Vector3d ROOT_LOWER = {-ROOT_SIZE, -ROOT_SIZE, -ROOT_SIZE};
     Vector3d ROOT_UPPER = {ROOT_SIZE, ROOT_SIZE, ROOT_SIZE};
@@ -134,7 +134,7 @@ int main() {
         particles[j].velocity += force[j] / particles[j].mass * dt;
     }
     omp_set_num_threads(10);
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 100000; i++) {
 
 
         // Full-step position update
@@ -161,17 +161,17 @@ int main() {
         for (int j = 0; j < particles.size(); j++) {
             particles[j].velocity += force[j] / particles[j].mass * dt;
         }
-        cout << particles.size() << endl;
+        //cout << particles.size() << endl;
         set<Particle*> processedParticles;
         if (root.collisionDetection(particles, processedParticles)) {
             root.rebuildTree(particles, root);
         }
-        cout << particles.size() << endl;
+        //cout << particles.size() << endl;
         t += dt;
 
 
 
-        if(i % 100 == 0) {
+        if(i % 1 == 0) {
             cout << i << endl;
             saveParticlesToCSV(particles, "data.csv", i);
             //double E;
