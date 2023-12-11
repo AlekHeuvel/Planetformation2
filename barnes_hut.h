@@ -130,7 +130,7 @@ public:
 
     static Particle mergeParticles(const Particle& p1, const Particle& p2) {
         double totalMass = p1.mass + p2.mass;
-        Vector3d newPosition = (p1.position * p1.mass + p2.position * p2.mass) / totalMass;
+        Vector3d newPosition = ((p1.position+p1.velocity*dt) * p1.mass + (p2.position+p2.velocity*dt) * p2.mass) / totalMass;
         Vector3d newVelocity = (p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
 
         // Assuming radius is proportional to the cube root of mass
@@ -255,7 +255,6 @@ public:
                 //
                 if (-dx.dot(dv)/dvNormSquared < dt){
                     //cout<< -dx.dot(dv)/dvNormSquared << endl;
-
                     cout << "collision" << endl;
                     return true;
                 }

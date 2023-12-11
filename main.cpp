@@ -163,9 +163,10 @@ int main() {
         }
         //cout << particles.size() << endl;
         set<Particle*> processedParticles;
-        if (root.collisionDetection(particles, processedParticles)) {
-            root.rebuildTree(particles, root);
+        if (new_root.collisionDetection(particles, processedParticles)) {
+            new_root.rebuildTree(particles, root);
         }
+        cout << particles.size() << endl;
         //cout << particles.size() << endl;
         t += dt;
 

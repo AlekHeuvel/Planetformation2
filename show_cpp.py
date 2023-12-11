@@ -10,7 +10,7 @@ clock = pygame.time.Clock()
 AU = 149.6e9
 
 # Function to convert simulation coordinates to screen coordinates
-def to_screen_coords(pos, scale=4*AU / height):
+def to_screen_coords(pos, scale=3*AU / height):
     coords = int(width / 2 + pos[0] / scale), int(height / 2 - pos[1] / scale)
     return coords
 
@@ -18,22 +18,28 @@ def read_particle_data(filename):
     # Read the CSV file into a DataFrame
     df = pd.read_csv(filename, header=None)
     df.columns = ['Timestep', 'PosX', 'PosY', 'PosZ', 'VelX', 'VelY', 'VelZ', 'Mass']
-
     return df
 
 data = read_particle_data("data.csv")
 unique_timesteps = data['Timestep'].unique()  # Get unique timesteps
 
 running = True
-for timestep in unique_timesteps:
+paused = False
+current_index = 0  # Index to keep track of the current timestep
 
-    # Event handler
+while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                paused = not paused
+            elif event.key == pygame.K_RIGHT and paused:
+                current_index = min(current_index + 1, len(unique_timesteps) - 1)
+            elif event.key == pygame.K_LEFT and paused:
+                current_index = max(current_index - 1, 0)
 
-    if not running:
-        break
+    timestep = unique_timesteps[current_index]
 
     # Clear the screen
     screen.fill((0, 0, 0))
@@ -44,12 +50,13 @@ for timestep in unique_timesteps:
         particle_pos = to_screen_coords(particle_pos)
         pygame.draw.circle(screen, (255, 0, 0), particle_pos, 5)
 
-    # Draw the sun at the center (optional)
-    # pygame.draw.circle(screen, (255, 255, 0), to_screen_coords(np.array([0, 0])), 10)
-
     pygame.display.flip()
 
     # Cap the frame rate
-    clock.tick(100)
+    clock.tick(60)
+
+    # Move to the next timestep if not paused
+    if not paused:
+        current_index = (current_index + 1) % len(unique_timesteps)
 
 pygame.quit()
