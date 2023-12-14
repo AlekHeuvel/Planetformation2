@@ -8,6 +8,7 @@ screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Particle Simulation")
 clock = pygame.time.Clock()
 AU = 149.6e9
+EarthMass = 5.972e24
 
 # Function to convert simulation coordinates to screen coordinates
 def to_screen_coords(pos, scale=3*AU / height):
@@ -48,7 +49,10 @@ while running:
     for particle in data[data['Timestep'] == timestep].values:
         particle_pos = particle[1:3]  # Only X and Y coordinates
         particle_pos = to_screen_coords(particle_pos)
-        pygame.draw.circle(screen, (255, 0, 0), particle_pos, 5)
+        r = (particle[7] / EarthMass) ** (1 / 3) * 10
+        r = min(100, r)
+        print(r)
+        pygame.draw.circle(screen, (255, 0, 0), particle_pos, r)
 
     pygame.display.flip()
 

@@ -11,12 +11,17 @@
 using namespace std;
 using namespace Eigen;
 
+// Define all variables
 const double solarMass = 1.989e30;
 const double earthMass = 5.972e24;
 const double AU = 149.6e9;
-const int n_particles = 5000;
+const int n_particles = 500;
 const double ROOT_SIZE = 10 * AU;
+const double inner_radius = 0.5 * AU; // Define the inner radius of the disk
+const double outer_radius = 4 * AU; // Define the outer radius of the disk
+
 vector<Vector3d> force = {};
+vector<Particle> particles = {};
 
 std::random_device rd;  // Obtain a random number from hardware
 std::mt19937 gen(rd()); // Seed the generator
@@ -63,54 +68,54 @@ bool isTooClose(const Vector3d& pos, const vector<Particle>& particles, double m
     return false;
 }
 
+Particle createParticle() {
+    Vector3d pos, vel;
+    double mass, radius;
+    bool positionOK;
+
+    do {
+    // Generate a random number for the power law distribution
+    double rand_num = static_cast<double>(rand()) / RAND_MAX;
+    //double semiMajorAxis = pow((pow(outer_radius, exponent + 1) - pow(inner_radius, exponent + 1)) * rand_num + pow(inner_radius, exponent + 1), 1.0 / (exponent + 1));
+    double dr = 1e9;
+    double semiMajorAxis = inner_radius + dr *(pow((rand_num*(sqrt(outer_radius) - sqrt(inner_radius))+sqrt(inner_radius)),2) - inner_radius)/dr;
+    // Generate a random angle for uniform distribution around the disk
+    double angle = dis_angle(gen);
+
+    // Calculate position in Cartesian coordinates
+    pos = Vector3d(semiMajorAxis * cos(angle), semiMajorAxis * sin(angle), 0);
+
+    // Generate a random eccentricity for each particle
+    double eccentricity = dis_eccentricity(gen);
+
+    // Calculate velocity for elliptical orbit
+    vel = get_velocity_elliptical_orbit(pos, eccentricity);
+
+    mass = embryo_mass(gen);
+    radius = pow(3/(4 * M_PI * density) * mass, 1.0/3.0);
+
+    // Check if the position is too close to other particles
+    positionOK = !isTooClose(pos, particles, radius*10); // Using 10 * radius as minimum distance
+    } while (!positionOK);
+
+    // Add particle to the list with the correct velocity
+    return Particle(pos, vel, {}, mass, radius);
+    }
+
 int main() {
     // empty data.csv
     ofstream file("data.csv");
     file.close();
 
-    vector<Particle> particles = {};
-
-    const double inner_radius = 0.5 * AU; // Define the inner radius of the disk
-    const double outer_radius = 4 * AU; // Define the outer radius of the disk
-
+    // Create particles
     for (int i = 0; i < n_particles; i++) {
-        Vector3d pos, vel;
-        double mass, radius;
-        bool positionOK;
-
-        do {
-            // Generate a random number for the power law distribution
-            double rand_num = static_cast<double>(rand()) / RAND_MAX;
-            //double semiMajorAxis = pow((pow(outer_radius, exponent + 1) - pow(inner_radius, exponent + 1)) * rand_num + pow(inner_radius, exponent + 1), 1.0 / (exponent + 1));
-            double dr = 1e9;
-            double semiMajorAxis = inner_radius + dr *(pow((rand_num*(sqrt(outer_radius) - sqrt(inner_radius))+sqrt(inner_radius)),2) - inner_radius)/dr;
-            // Generate a random angle for uniform distribution around the disk
-            double angle = dis_angle(gen);
-
-            // Calculate position in Cartesian coordinates
-            pos = Vector3d(semiMajorAxis * cos(angle), semiMajorAxis * sin(angle), 0);
-
-            // Generate a random eccentricity for each particle
-            double eccentricity = dis_eccentricity(gen);
-
-            // Calculate velocity for elliptical orbit
-            vel = get_velocity_elliptical_orbit(pos, eccentricity);
-
-            mass = embryo_mass(gen);
-            radius = pow(3/(4 * M_PI * density) * mass, 1.0/3.0);
-
-            // Check if the position is too close to other particles
-            positionOK = !isTooClose(pos, particles, radius*10); // Using 10 * radius as minimum distance
-        } while (!positionOK);
-
-        // Add particle to the list with the correct velocity
-        particles.push_back(Particle(pos, vel, mass, radius));
+        particles.push_back(createParticle());
     }
 
     // Creating sun
     Vector3d sunPos = Vector3d::Zero();
     Vector3d sunVel = Vector3d::Zero();
-    particles.push_back(Particle(sunPos, sunVel, solarMass, 7e8));
+    particles.push_back(Particle(sunPos, sunVel, {}, solarMass, 7e8));
 
     // Setting up timing and time steps
     double t = 0;
@@ -133,7 +138,7 @@ int main() {
     for (int j = 0; j < particles.size(); j++) {
         particles[j].velocity += force[j] / particles[j].mass * dt;
     }
-    omp_set_num_threads(10);
+//    omp_set_num_threads(10);
     for (int i = 0; i < 100000; i++) {
 
 
@@ -143,7 +148,6 @@ int main() {
         }
 
         // Recalculate forces
-
         Node new_root(ROOT_LOWER, ROOT_UPPER);
         for (Particle &particle: particles) {
             new_root.addParticle(particle);
@@ -151,21 +155,20 @@ int main() {
         new_root.setMass();
         new_root.setCentreOfMass();
         #pragma omp parallel for
-        for (int j = 0; j < particles.size(); j++) {
-            force[j] = new_root.getForceWithParticle(particles[j]);
+        for (Particle& particle : particles) {
+            particle.force = new_root.getForceWithParticle(particle);
         }
-
-
 
         // Final half-step velocity update
         for (int j = 0; j < particles.size(); j++) {
             particles[j].velocity += force[j] / particles[j].mass * dt;
         }
-        //cout << particles.size() << endl;
+
         set<Particle*> processedParticles;
         if (new_root.collisionDetection(particles, processedParticles)) {
             new_root.rebuildTree(particles, root);
         }
+        //cout << particles.size() << endl;
         cout << particles.size() << endl;
         //cout << particles.size() << endl;
         t += dt;

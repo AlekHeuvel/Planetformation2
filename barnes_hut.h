@@ -17,6 +17,7 @@ const double density = 3e3; //bulk density kg/m^3
 struct Particle {
     mutable Vector3d position;
     mutable Vector3d velocity;
+    mutable Vector3d force;
     double mass;
     double radius;
     bool operator==(const Particle& other) const = default;
@@ -131,12 +132,12 @@ public:
     static Particle mergeParticles(const Particle& p1, const Particle& p2) {
         double totalMass = p1.mass + p2.mass;
         Vector3d newPosition = ((p1.position+p1.velocity*dt) * p1.mass + (p2.position+p2.velocity*dt) * p2.mass) / totalMass;
-        Vector3d newVelocity = (p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
+        Vector3d newVelocity = ((p1.force + p2.force) * dt + p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
 
         // Assuming radius is proportional to the cube root of mass
         double newRadius = pow(3/(4 * M_PI * density) * totalMass, 1.0/3.0);
 
-        return Particle(newPosition, newVelocity, totalMass, newRadius);
+        return Particle(newPosition, newVelocity, {}, totalMass, newRadius);
     }
 
     void rebuildTree(vector<Particle>& particles, Node& root) {
