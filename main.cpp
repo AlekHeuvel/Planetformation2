@@ -169,7 +169,10 @@ int main() {
 
         // Additional steps such as collision handling or tree building
         new_root.buildTree(particles, new_root);
-        //particles = new_root.collideParticles();
+        if (i>100000){
+            particles = new_root.collideParticles();
+        }
+
 
         // Time increment
         t += dt;

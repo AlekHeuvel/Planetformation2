@@ -124,7 +124,7 @@ public:
             double distance = r.norm();
 
             // Softening factor (epsilon), choose an appropriate value
-            const double epsilon = 1.2*pow(particle.mass/density, 1.0/3.0); // Example value, adjust as needed
+            const double epsilon = particle.radius;
 
             // Modified gravitational force equation with softening
             return -G * mass * particle.mass * r / (pow(distance * distance + epsilon * epsilon, 1.5));
