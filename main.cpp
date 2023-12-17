@@ -104,13 +104,13 @@ int main() {
         } while (!positionOK);
 
         // Add particle to the list with the correct velocity
-        particles.push_back(Particle(pos, vel, mass, radius));
+        particles.push_back(Particle(pos, vel,{}, mass, radius));
     }
 
     // Creating sun
     Vector3d sunPos = Vector3d::Zero();
     Vector3d sunVel = Vector3d::Zero();
-    particles.push_back(Particle(sunPos, sunVel, solarMass, 7e8));
+    particles.push_back(Particle(sunPos, sunVel,{}, solarMass, 7e8));
 
     // Setting up timing and time steps
     double t = 0;
@@ -150,7 +150,7 @@ int main() {
         }
         new_root.setMass();
         new_root.setCentreOfMass();
-        #pragma omp parallel for
+#pragma omp parallel for
         for (int j = 0; j < particles.size(); j++) {
             force[j] = new_root.getForceWithParticle(particles[j]);
         }
@@ -161,11 +161,11 @@ int main() {
         for (int j = 0; j < particles.size(); j++) {
             particles[j].velocity += force[j] / particles[j].mass * dt;
         }
-        //cout << particles.size() << endl;
-        set<Particle*> processedParticles;
-        if (new_root.collisionDetection(particles, processedParticles)) {
-            new_root.rebuildTree(particles, root);
-        }
+        cout << particles.size() << endl;
+
+
+        new_root.buildTree(particles, new_root);
+        particles = new_root.collideParticles();
         //cout << particles.size() << endl;
         t += dt;
 

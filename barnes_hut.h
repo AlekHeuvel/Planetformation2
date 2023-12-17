@@ -17,6 +17,7 @@ const double density = 3e3; //bulk density kg/m^3
 struct Particle {
     mutable Vector3d position;
     mutable Vector3d velocity;
+    mutable Vector3d force;
     double mass;
     double radius;
     bool operator==(const Particle& other) const = default;
@@ -130,16 +131,17 @@ public:
 
     static Particle mergeParticles(const Particle& p1, const Particle& p2) {
         double totalMass = p1.mass + p2.mass;
-        Vector3d newPosition = (p1.position * p1.mass + p2.position * p2.mass) / totalMass;
-        Vector3d newVelocity = (p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
+        Vector3d newPosition = ((p1.position+p1.velocity*dt) * p1.mass + (p2.position+p2.velocity*dt) * p2.mass) / totalMass;
+        Vector3d newVelocity = ((p1.force + p2.force) * dt + p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
 
         // Assuming radius is proportional to the cube root of mass
         double newRadius = pow(3/(4 * M_PI * density) * totalMass, 1.0/3.0);
 
-        return Particle(newPosition, newVelocity, totalMass, newRadius);
+        return Particle(newPosition, newVelocity, {}, totalMass, newRadius);
     }
 
-    void rebuildTree(vector<Particle>& particles, Node& root) {
+
+    void buildTree(vector<Particle>& particles, Node& root) {
         // Create a new root node with the same boundaries as the old root
         Node newRoot(root.lowerBound, root.upperBound);
 
@@ -156,112 +158,62 @@ public:
         root = std::move(newRoot);
     }
 
-    bool collisionDetection(vector<Particle>& allParticles, set<Particle*>& processedParticles) {
-        bool collisionOccurred = false;
-        vector<pair<int, int>> collidingPairs;
+    vector<Particle> collideParticles() {
+        vector<Particle> newParticles;
+        // Check if all child nodes have more than 1 particle
+        if (all_of(children.begin(), children.end(), [](Node& child) { return child.particles.size() != 1; })) {
+            for (Node& child : children) {
+                vector<Particle> childParticles = child.collideParticles();
+                newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
+            }
+            return newParticles;
+        }
 
-        for (Node& child : children) {
-            if (child.particles.size() > 1) {
-                for (int i = 0; i < child.particles.size(); i++) {
-                    Particle& p1 = child.particles[i];
-
-                    // Skip if this particle has already been processed
-                    if (processedParticles.find(&p1) != processedParticles.end()) {
-                        continue;
-                    }
-
-                    for (int j = 0; j < child.particles.size(); j++) {
-                        Particle& p2 = child.particles[j];
-
-                        // Skip if this particle has already been processed
-                        if (processedParticles.find(&p2) != processedParticles.end()) {
-                            continue;
-                        }
-
-                        if (particleCollision(p1, p2)) {
-                            // Record the indices of colliding particles
-                            collidingPairs.emplace_back(i, j);
-
-
-                            // Update processed particles set
-                            processedParticles.insert(&p1);
-                            processedParticles.insert(&p2);
-
-                            collisionOccurred = true;
-                        }
-                    }
+        for (int i = 0; i < particles.size(); i++) {
+            for (int j = i; j < particles.size(); j++) {
+                // if p_list collide break
+                if (haveCollided(particles[i], particles[j])) {
+                    particles.erase(particles.begin() + i);
+                    particles.erase(particles.begin() + j);
+                    Particle newParticle = mergeParticles(particles[i], particles[j]);
+                    particles.insert(particles.begin() + i, newParticle);
+                    break;
                 }
             }
         }
 
-        // Process all collisions
-        for (const auto& pair : collidingPairs) {
-            int idx1 = pair.first;
-            int idx2 = pair.second;
-
-            Particle& p1 = allParticles[idx1];
-            Particle& p2 = allParticles[idx2];
-
-
-            Particle mergedParticle = mergeParticles(p1, p2);
-            // Add the merged particle to the list
-            allParticles.push_back(mergedParticle);
-        }
-
-        // Remove collided particles
-        set<int> removeIndices;
-        for (const auto& pair : collidingPairs) {
-            removeIndices.insert(pair.first);
-            removeIndices.insert(pair.second);
-        }
-
-        // Create a new vector for the non-collided particles
-        vector<Particle> newParticles;
-        for (int i = 0; i < allParticles.size(); i++) {
-            if (removeIndices.find(i) == removeIndices.end()) {
-                newParticles.push_back(allParticles[i]);
-            }
-        }
-
-        // Replace the old particle vector with the new one
-        allParticles = std::move(newParticles);
-
-        return collisionOccurred;
+        return particles;
     }
 
-    static bool particleCollision(const Particle& particle1, const Particle& particle2) {
+    static bool haveCollided(const Particle& particle1, const Particle& particle2) {
         Vector3d dx = particle1.position - particle2.position;
         Vector3d dv = particle1.velocity - particle2.velocity;
-
 
         double dxNormSquared = dx.squaredNorm();
         double dvNormSquared = dv.squaredNorm();
 
         // Using the sum of radii directly in the calculation
-        double radiiSum = particle1.radius + particle2.radius;
-
-        double radiiSumSquared = pow(radiiSum,2);
+        double radiiSumSquared = pow(particle1.radius + particle2.radius, 2);
 
         // Calculate the closest approach
         double d = (dxNormSquared*dvNormSquared - pow(dx.dot(dv), 2)) / dvNormSquared;
+        if (d < 0) {
+            return false;
+        }
 
         // Check if the distance at the closest approach is less than the sum of the radii
         if (d < radiiSumSquared) {
-            // Additional check for the particles moving towards each other
+            // Additional check for the p_list moving towards each other
             if (-dx.dot(dv) > 0) {
-                //
+                // ?
                 if (-dx.dot(dv)/dvNormSquared < dt){
-                    //cout<< -dx.dot(dv)/dvNormSquared << endl;
-
                     cout << "collision" << endl;
                     return true;
                 }
             }
         }
-
         return false;
     }
-
 
 private:
     Vector3d lowerBound;
