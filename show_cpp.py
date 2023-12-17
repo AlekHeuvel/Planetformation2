@@ -51,10 +51,8 @@ while running:
         particle_pos = to_screen_coords(particle_pos)
         r = (particle[7] / EarthMass) ** (1 / 3) * 10
         r = min(100, r)
-        if r >= 100:
-            pygame.draw.circle(screen, (255, 255, 0), particle_pos, r)
-        else:
-            pygame.draw.circle(screen, (119, 119, 119), particle_pos, r)
+        print(r)
+        pygame.draw.circle(screen, (255, 0, 0), particle_pos, r)
 
     pygame.display.flip()
 
