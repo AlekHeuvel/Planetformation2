@@ -498,7 +498,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR __half_raw raw_uint16_to_h
   // On the other hand, having anything but a return statement also triggers a compile error
   // because this is constexpr function.
   // Fortunately, since we need to disable EIGEN_CONSTEXPR for GPU anyway, we can get out
-  // of this catch22 by having separate bodies for GPU / non GPU
+  // of this catch22 by having separate p_list for GPU / non GPU
 #if defined(EIGEN_HAS_GPU_FP16)
    __half_raw h;
    h.x = x;
