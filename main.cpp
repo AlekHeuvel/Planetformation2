@@ -131,48 +131,52 @@ int main() {
         force.push_back(root.getForceWithParticle(particle));
     }
     for (int j = 0; j < particles.size(); j++) {
-        particles[j].velocity += force[j] / particles[j].mass * dt;
+        particles[j].velocity += force[j] / particles[j].mass * 0.5*dt;
     }
     omp_set_nested(1);
     omp_set_num_threads(10);
     for (int i = 0; i < 100000000000; i++) {
-
+        // Initial half-step velocity update
+        #pragma omp parallel for
+        for (int j = 0; j < particles.size(); j++) {
+            particles[j].velocity += force[j] / particles[j].mass * 0.5*dt;
+        }
 
         // Full-step position update
+        #pragma omp parallel for
         for (Particle &particle: particles) {
             particle.position += particle.velocity * dt;
         }
 
         // Recalculate forces
-
         Node new_root(ROOT_LOWER, ROOT_UPPER);
         for (Particle &particle: particles) {
             new_root.addParticle(particle);
         }
         new_root.setMass();
         new_root.setCentreOfMass();
+
         #pragma omp parallel for
         for (int j = 0; j < particles.size(); j++) {
             force[j] = new_root.getForceWithParticle(particles[j]);
         }
 
-
-
         // Final half-step velocity update
+        #pragma omp parallel for
         for (int j = 0; j < particles.size(); j++) {
-            particles[j].velocity += force[j] / particles[j].mass * dt;
+            particles[j].velocity += force[j] / particles[j].mass * 0.5*dt;
         }
 
-
-
+        // Additional steps such as collision handling or tree building
         new_root.buildTree(particles, new_root);
-        particles = new_root.collideParticles();
-        //cout << particles.size() << endl;
+        //particles = new_root.collideParticles();
+
+        // Time increment
         t += dt;
 
 
 
-        if(i % 5000 == 0) {
+        if(i % 1000 == 0) {
             cout << i << endl;
             cout << particles.size() << endl;
             saveParticlesToCSV(particles, "data.csv", i);
