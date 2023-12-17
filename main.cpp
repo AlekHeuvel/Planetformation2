@@ -71,7 +71,7 @@ int main() {
     vector<Particle> particles = {};
 
     const double inner_radius = 0.5 * AU; // Define the inner radius of the disk
-    const double outer_radius = 0.6 * AU; // Define the outer radius of the disk
+    const double outer_radius = 4 * AU; // Define the outer radius of the disk
 
     for (int i = 0; i < n_particles; i++) {
         Vector3d pos, vel;
@@ -133,8 +133,9 @@ int main() {
     for (int j = 0; j < particles.size(); j++) {
         particles[j].velocity += force[j] / particles[j].mass * dt;
     }
+    omp_set_nested(1);
     omp_set_num_threads(10);
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 100000000000; i++) {
 
 
         // Full-step position update
@@ -150,7 +151,7 @@ int main() {
         }
         new_root.setMass();
         new_root.setCentreOfMass();
-#pragma omp parallel for
+        #pragma omp parallel for
         for (int j = 0; j < particles.size(); j++) {
             force[j] = new_root.getForceWithParticle(particles[j]);
         }
@@ -161,7 +162,7 @@ int main() {
         for (int j = 0; j < particles.size(); j++) {
             particles[j].velocity += force[j] / particles[j].mass * dt;
         }
-        cout << particles.size() << endl;
+
 
 
         new_root.buildTree(particles, new_root);
@@ -171,8 +172,9 @@ int main() {
 
 
 
-        if(i % 1 == 0) {
+        if(i % 5000 == 0) {
             cout << i << endl;
+            cout << particles.size() << endl;
             saveParticlesToCSV(particles, "data.csv", i);
             //double E;
             //E = 0;

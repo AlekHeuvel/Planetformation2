@@ -8,10 +8,10 @@
 using namespace std;
 using namespace Eigen;
 
-const int dt = 4e5;
+const int dt = 1e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
-const double THETA = 0.5; // Radians
+const double THETA = 1.5; // Radians
 const double density = 3e3; //bulk density kg/m^3
 
 struct Particle {
@@ -122,7 +122,7 @@ public:
             double distance = r.norm();
 
             // Softening factor (epsilon), choose an appropriate value
-            const double epsilon = 1e7; // Example value, adjust as needed
+            const double epsilon = pow(particle.mass/density, 1.0/3.0); // Example value, adjust as needed
 
             // Modified gravitational force equation with softening
             return -G * mass * particle.mass * r / (pow(distance * distance + epsilon * epsilon, 1.5));
