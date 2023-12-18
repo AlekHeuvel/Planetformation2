@@ -12,7 +12,7 @@ using namespace std;
 using namespace Eigen;
 
 // Define all variables
-const int n_particles = 133;
+const int n_particles = 0;
 const double solarMass = 1.989e30;
 const double earthMass = 5.972e24;
 const double AU = 149.6e9;
@@ -30,9 +30,10 @@ std::uniform_real_distribution<> embryo_mass(0.01*earthMass, 0.11*earthMass);
 
 const Vector3d NORMAL_VECTOR(0, 0, 1);
 
-Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double eccentricity) {
+Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double eccentricity, double mass) {
     double semiMajorAxis = position.norm() / (1 - eccentricity);
-    double velocityMagnitude = sqrt(G * solarMass * (2 / position.norm() - 1 / semiMajorAxis));
+    semiMajorAxis = 0.2 * AU;
+    double velocityMagnitude = sqrt(G * (solarMass + mass) * (2 / position.norm() - 1 / semiMajorAxis)) / 2;
     Vector3d velocity = velocityMagnitude * NORMAL_VECTOR.cross(position).normalized();
 
     return velocity;
@@ -65,34 +66,31 @@ bool isTooClose(const Vector3d& pos, const vector<Particle>& particles, double m
     return false;
 }
 
-double kineticEnergy(const vector<Particle>& particles) {
+double kineticEnergy(vector<Particle>& particles) {
     double E = 0;
-    for (const auto& particle : particles) {
+    for (auto& particle : particles) {
         E += 0.5 * particle.mass * particle.velocity.squaredNorm();
     }
     return E;
 }
 
-double potentialEnergy(const vector<Particle>& particles) {
+double potentialEnergy(vector<Particle>& particles) {
     double E = 0;
     for (int i = 0; i < particles.size(); i++) {
-        for (int j = i + 1; j < particles.size(); j++) {
-            double distance = (particles[i].position - particles[j].position).norm();
-            if (distance > 0) {
-                E -= G * particles[i].mass * particles[j].mass / distance;
-            }
+        for (int j = i+1; j < particles.size(); j++) {
+            E += -(G * particles[i].mass * particles[j].mass)/(particles[i].position-particles[j].position).norm();
         }
     }
     return E;
 }
 
-double totalEnergy(const vector<Particle>& particles) {
+double totalEnergy(vector<Particle>& particles) {
     return kineticEnergy(particles) + potentialEnergy(particles);
 }
 
-Vector3d angularMomentum(const vector<Particle>& particles) {
+Vector3d angularMomentum(vector<Particle>& particles) {
     Vector3d L = Vector3d::Zero();
-    for (const auto& particle : particles) {
+    for (auto& particle : particles) {
         L += particle.mass * particle.position.cross(particle.velocity);
     }
     return L;
@@ -127,7 +125,7 @@ Particle createParticle() {
     double eccentricity = dis_eccentricity(gen);
 
     // Calculate velocity for elliptical orbit
-    vel = get_velocity_elliptical_orbit(pos, eccentricity);
+    vel = get_velocity_elliptical_orbit(pos, eccentricity, mass);
 
     return Particle(pos, vel, {}, mass, radius);
     }
@@ -142,10 +140,18 @@ int main() {
         p_list.push_back(createParticle());
     }
 
-    // Creating sun
-    Vector3d sunPos = Vector3d::Zero();
-    Vector3d sunVel = Vector3d::Zero();
-    p_list.push_back(Particle(sunPos, sunVel, {}, solarMass, 7e8));
+    // Creating binary star system
+    double semi_major = 0.2 * AU;
+    double eccentricity = 0.5;
+    double dis_com_focal_point = semi_major * (1 + eccentricity);
+    Vector3d star1Pos = Vector3d(dis_com_focal_point * cos(0), dis_com_focal_point * sin(0), 0);
+    Vector3d star1Vel = get_velocity_elliptical_orbit(star1Pos, 0.5, solarMass);
+//    Vector3d star1Vel = Vector3d::Zero();
+    Vector3d star2Pos = Vector3d(dis_com_focal_point * cos(PI), dis_com_focal_point * sin(PI), 0);
+    Vector3d star2Vel = get_velocity_elliptical_orbit(star2Pos, 0.5, solarMass);
+//    Vector3d star2Vel = Vector3d::Zero();
+    p_list.push_back(Particle(star1Pos, star1Vel, {}, solarMass, 7e8));
+    p_list.push_back(Particle(star2Pos, star2Vel, {}, solarMass, 7e8));
 
     // Setting up timing and time steps
     double t = 0;
@@ -159,40 +165,56 @@ int main() {
     for (const Particle &particle: p_list) {
         particle.force = root.getForceWithParticle(particle);
     }
+    for (Particle &particle : p_list) {
+        particle.velocity += particle.force / particle.mass * dt;
+    }
 
     omp_set_num_threads(10);
     // Simulation loop
     for (int i = 0; i < 50000; i++) {
+
         // Initial half-step velocity update
-#pragma omp parallel for
-        for (auto &particle : p_list) {
+        #pragma omp parallel for
+        for (auto & particle : p_list) {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
         }
 
         // Full-step position update
-#pragma omp parallel for
-        for (Particle &particle : p_list) {
+        #pragma omp parallel for
+        for (Particle &particle: p_list) {
             particle.position += particle.velocity * dt;
         }
 
-        // Recalculate forces after position update
         root.rebuildTree(p_list);
-#pragma omp parallel for
-        for (Particle &particle : p_list) {
+
+        #pragma omp parallel for
+        for (auto & particle : p_list) {
             particle.force = root.getForceWithParticle(particle);
         }
 
         // Final half-step velocity update
-#pragma omp parallel for
-        for (auto &particle : p_list) {
+        #pragma omp parallel for
+        for (auto & particle : p_list) {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
         }
 
-        // Time increment
+        // Recalculate forces
+        root.rebuildTree(p_list);
+        #pragma omp parallel for
+        for (Particle& particle : p_list) {
+            particle.force = root.getForceWithParticle(particle);
+        }
+
+        // Final half-step velocity update
+        for (auto & particle : p_list) {
+            particle.velocity += particle.force / particle.mass * 0.5 * dt;
+        }
+
+//        p_list = root.collideParticles();
         t += dt;
 
         saveParticlesToCSV(p_list, "data.csv", i);
-        if(i % 1000 == 0) {
+        if(i % 50 == 0) {
             cout << i << endl;
             cout << "Total energy: " << totalEnergy(p_list) << endl;
             cout << "Angular momentum: " << angularMomentum(p_list) << endl;
