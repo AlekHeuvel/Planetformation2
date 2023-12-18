@@ -21,7 +21,7 @@ def read_particle_data(filename):
     df.columns = ['Timestep', 'PosX', 'PosY', 'PosZ', 'VelX', 'VelY', 'VelZ', 'Mass']
     return df
 
-data = read_particle_data("data.csv")
+data = read_particle_data("cmake-build-debug/data.csv")
 unique_timesteps = data['Timestep'].unique()  # Get unique timesteps
 
 running = True

@@ -8,13 +8,12 @@
 using namespace std;
 using namespace Eigen;
 
-const double dt_min = 10000; // Minimum time step size
-const double dt_max = 865000; // Maximum time step size
-double dt = dt_max; // Initial time step
+const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
 const double THETA = 0.5; // Radians
 const double density = 3e3; //bulk density kg/m^3
+const double PI = 3.14159265358979323846264338;
 
 struct Particle {
     mutable Vector3d position;
@@ -27,10 +26,24 @@ struct Particle {
 
 class Node {
 public:
-    Node(Vector3d lowerBound, Vector3d upperBound)
+    Node(Vector3d lowerBound, Vector3d upperBound, int idx = 0)
             : lowerBound(lowerBound), upperBound(upperBound),
               size(pow(2, 1.0/3) * (upperBound[0] - lowerBound[0])),
               mass(0), centreOfMass(Vector3d::Zero()), particles({}), children({}) {}
+
+    void rebuildTree(vector<Particle>& p_list) {
+        // Add all p_list to the new tree
+        particles.clear();
+        children.clear();
+
+        for (const Particle& particle : p_list) {
+            addParticle(particle);
+        }
+
+        // Set the mass and center of mass for the new tree
+        setMass();
+        setCentreOfMass();
+    }
 
     Node& createChild(Vector3d lower, Vector3d upper) {
         Node child(std::move(lower), std::move(upper));
@@ -124,7 +137,7 @@ public:
             double distance = r.norm();
 
             // Softening factor (epsilon), choose an appropriate value
-            const double epsilon = particle.radius;
+            const double epsilon = 1e7; // Example value, adjust as needed
 
             // Modified gravitational force equation with softening
             return -G * mass * particle.mass * r / (pow(distance * distance + epsilon * epsilon, 1.5));
@@ -137,70 +150,36 @@ public:
         Vector3d newVelocity = ((p1.force + p2.force) * dt + p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
 
         // Assuming radius is proportional to the cube root of mass
-        double newRadius = pow(3/(4 * M_PI * density) * totalMass, 1.0/3.0);
+        double newRadius = pow(3/(4 * PI * density) * totalMass, 1.0/3.0);
 
         return Particle(newPosition, newVelocity, {}, totalMass, newRadius);
     }
 
-
-    void buildTree(vector<Particle>& particles, Node& root) {
-        // Create a new root node with the same boundaries as the old root
-        Node newRoot(root.lowerBound, root.upperBound);
-
-        // Add all particles to the new tree
-        for (const Particle& particle : particles) {
-            newRoot.addParticle(particle);
-        }
-
-        // Set the mass and center of mass for the new tree
-        newRoot.setMass();
-        newRoot.setCentreOfMass();
-
-        // Replace the old root with the new one
-        root = std::move(newRoot);
-    }
-
     vector<Particle> collideParticles() {
         vector<Particle> newParticles;
-
-        // If all child nodes have more than 1 particle, process them recursively
+        // Check if all child nodes have more than 1 particle
         if (all_of(children.begin(), children.end(), [](Node& child) { return child.particles.size() != 1; })) {
             for (Node& child : children) {
                 vector<Particle> childParticles = child.collideParticles();
                 newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
             }
-        } else {
-            // Iterate through all particles
-            int i = 0;
-            while (i < particles.size()) {
-                bool collisionOccurred = false;
-                for (int j = i + 1; j < particles.size(); j++) {
-                    if (haveCollided(particles[i], particles[j])) {
-                        // Merge particles i and j into a new particle
-                        Particle newParticle = mergeParticles(particles[i], particles[j]);
-
-                        // Add the new particle to the list
-                        particles.push_back(newParticle);
-
-                        // Remove the original collided particles
-                        // Note: Removing j before i to maintain correct indexing
-                        particles.erase(particles.begin() + j);
-                        particles.erase(particles.begin() + i);
-
-                        collisionOccurred = true;
-                        break; // Break out of inner loop
-                    }
-                }
-                if (!collisionOccurred) {
-                    newParticles.push_back(particles[i]);
-                    i++; // Increment i only if no collision occurred
-                }
-            }
-
-
+            return newParticles;
         }
 
-        return newParticles;
+        for (int i = 0; i < particles.size(); i++) {
+            for (int j = i; j < particles.size(); j++) {
+                // if p_list collide break
+                if (haveCollided(particles[i], particles[j])) {
+                    particles.erase(particles.begin() + i);
+                    particles.erase(particles.begin() + j);
+                    Particle newParticle = mergeParticles(particles[i], particles[j]);
+                    particles.insert(particles.begin() + i, newParticle);
+                    break;
+                }
+            }
+        }
+
+        return particles;
     }
 
     static bool haveCollided(const Particle& particle1, const Particle& particle2) {
@@ -234,6 +213,7 @@ public:
     }
 
 private:
+    int idx;
     Vector3d lowerBound;
     Vector3d upperBound;
     double size;
