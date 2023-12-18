@@ -136,6 +136,7 @@ int main() {
     omp_set_nested(1);
     omp_set_num_threads(10);
     for (int i = 0; i < 100000000000; i++) {
+
         // Initial half-step velocity update
         #pragma omp parallel for
         for (int j = 0; j < particles.size(); j++) {
@@ -155,6 +156,11 @@ int main() {
         }
         new_root.setMass();
         new_root.setCentreOfMass();
+        if (i > 2000){
+            particles = new_root.collideParticles();
+        }
+        // Additional steps such as collision handling or tree building
+        new_root.buildTree(particles, new_root);
 
         #pragma omp parallel for
         for (int j = 0; j < particles.size(); j++) {
@@ -167,9 +173,9 @@ int main() {
             particles[j].velocity += force[j] / particles[j].mass * 0.5*dt;
         }
 
-        // Additional steps such as collision handling or tree building
-        new_root.buildTree(particles, new_root);
-        particles = new_root.collideParticles();
+
+
+
 
 
         // Time increment
@@ -177,7 +183,7 @@ int main() {
 
 
 
-        if(i % 1000 == 0) {
+        if(i % 100 == 0) {
             cout << i << endl;
             cout << particles.size() << endl;
             saveParticlesToCSV(particles, "data.csv", i);

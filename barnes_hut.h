@@ -162,29 +162,45 @@ public:
 
     vector<Particle> collideParticles() {
         vector<Particle> newParticles;
-        // Check if all child nodes have more than 1 particle
+
+        // If all child nodes have more than 1 particle, process them recursively
         if (all_of(children.begin(), children.end(), [](Node& child) { return child.particles.size() != 1; })) {
             for (Node& child : children) {
                 vector<Particle> childParticles = child.collideParticles();
                 newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
             }
-            return newParticles;
-        }
+        } else {
+            // Iterate through all particles
+            int i = 0;
+            while (i < particles.size()) {
+                bool collisionOccurred = false;
+                for (int j = i + 1; j < particles.size(); j++) {
+                    if (haveCollided(particles[i], particles[j])) {
+                        // Merge particles i and j into a new particle
+                        Particle newParticle = mergeParticles(particles[i], particles[j]);
 
-        for (int i = 0; i < particles.size(); i++) {
-            for (int j = i; j < particles.size(); j++) {
-                // if p_list collide break
-                if (haveCollided(particles[i], particles[j])) {
-                    particles.erase(particles.begin() + i);
-                    particles.erase(particles.begin() + j);
-                    Particle newParticle = mergeParticles(particles[i], particles[j]);
-                    particles.insert(particles.begin() + i, newParticle);
-                    break;
+                        // Add the new particle to the list
+                        particles.push_back(newParticle);
+
+                        // Remove the original collided particles
+                        // Note: Removing j before i to maintain correct indexing
+                        particles.erase(particles.begin() + j);
+                        particles.erase(particles.begin() + i);
+
+                        collisionOccurred = true;
+                        break; // Break out of inner loop
+                    }
+                }
+                if (!collisionOccurred) {
+                    newParticles.push_back(particles[i]);
+                    i++; // Increment i only if no collision occurred
                 }
             }
+
+
         }
 
-        return particles;
+        return newParticles;
     }
 
     static bool haveCollided(const Particle& particle1, const Particle& particle2) {
