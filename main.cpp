@@ -12,7 +12,7 @@ using namespace std;
 using namespace Eigen;
 
 // Define all variables
-const int n_particles = 500;
+const int n_particles = 133;
 const double solarMass = 1.989e30;
 const double earthMass = 5.972e24;
 const double AU = 149.6e9;
@@ -76,8 +76,11 @@ double kineticEnergy(const vector<Particle>& particles) {
 double potentialEnergy(const vector<Particle>& particles) {
     double E = 0;
     for (int i = 0; i < particles.size(); i++) {
-        for (int j = i+1; j < particles.size(); j++) {
-            E += -(G * particles[i].mass * particles[j].mass)/sqrt((particles[i].position-particles[j].position).norm());
+        for (int j = i + 1; j < particles.size(); j++) {
+            double distance = (particles[i].position - particles[j].position).norm();
+            if (distance > 0) {
+                E -= G * particles[i].mass * particles[j].mass / distance;
+            }
         }
     }
     return E;
@@ -156,56 +159,40 @@ int main() {
     for (const Particle &particle: p_list) {
         particle.force = root.getForceWithParticle(particle);
     }
-    for (Particle &particle : p_list) {
-        particle.velocity += particle.force / particle.mass * dt;
-    }
 
     omp_set_num_threads(10);
     // Simulation loop
     for (int i = 0; i < 50000; i++) {
-
         // Initial half-step velocity update
-        #pragma omp parallel for
-        for (auto & j : p_list) {
-            j.velocity += j.force / j.mass * 0.5*dt;
+#pragma omp parallel for
+        for (auto &particle : p_list) {
+            particle.velocity += particle.force / particle.mass * 0.5 * dt;
         }
 
         // Full-step position update
-        #pragma omp parallel for
-        for (Particle &particle: p_list) {
+#pragma omp parallel for
+        for (Particle &particle : p_list) {
             particle.position += particle.velocity * dt;
         }
 
+        // Recalculate forces after position update
         root.rebuildTree(p_list);
-
-        #pragma omp parallel for
-        for (auto & j : p_list) {
-            j.force = root.getForceWithParticle(j);
-        }
-
-        // Final half-step velocity update
-        #pragma omp parallel for
-        for (auto & j : p_list) {
-            j.velocity += j.force / j.mass * 0.5*dt;
-        }
-
-        // Recalculate forces
-        root.rebuildTree(p_list);
-        #pragma omp parallel for
-        for (Particle& particle : p_list) {
+#pragma omp parallel for
+        for (Particle &particle : p_list) {
             particle.force = root.getForceWithParticle(particle);
         }
 
         // Final half-step velocity update
-        for (auto & particle : p_list) {
-            particle.velocity += particle.force / particle.mass * dt;
+#pragma omp parallel for
+        for (auto &particle : p_list) {
+            particle.velocity += particle.force / particle.mass * 0.5 * dt;
         }
 
-        p_list = root.collideParticles();
+        // Time increment
         t += dt;
 
         saveParticlesToCSV(p_list, "data.csv", i);
-        if(i % 50 == 0) {
+        if(i % 1000 == 0) {
             cout << i << endl;
             cout << "Total energy: " << totalEnergy(p_list) << endl;
             cout << "Angular momentum: " << angularMomentum(p_list) << endl;

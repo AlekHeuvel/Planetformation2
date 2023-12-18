@@ -11,7 +11,7 @@ using namespace Eigen;
 const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
-const double THETA = 0; // Radians
+const double THETA = 0.5; // Radians
 const double density = 3e3; //bulk density kg/m^3
 const double PI = 3.14159265358979323846264338;
 
