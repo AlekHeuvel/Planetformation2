@@ -12,7 +12,7 @@ using namespace std;
 using namespace Eigen;
 
 // Define all variables
-const int n_particles = 0;
+const int n_particles = 10;
 const double solarMass = 1.989e30;
 const double earthMass = 5.972e24;
 const double AU = 149.6e9;
@@ -30,12 +30,10 @@ std::uniform_real_distribution<> embryo_mass(0.01*earthMass, 0.11*earthMass);
 
 const Vector3d NORMAL_VECTOR(0, 0, 1);
 
-Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double eccentricity, double mass) {
-    double semiMajorAxis = position.norm() / (1 - eccentricity);
-    semiMajorAxis = 0.2 * AU;
+Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double semiMajorAxis, double mass) {
+//    double semiMajorAxis = position.norm() / (1 - eccentricity);
     double velocityMagnitude = sqrt(G * (solarMass + mass) * (2 / position.norm() - 1 / semiMajorAxis)) / 2;
     Vector3d velocity = velocityMagnitude * NORMAL_VECTOR.cross(position).normalized();
-
     return velocity;
 }
 
@@ -100,12 +98,14 @@ Particle createParticle() {
     Vector3d pos, vel;
     double mass, radius;
     bool positionOK;
+    double semiMajorAxis;
 
     do {
         // Generate a random number for the power law distribution
         double rand_num = static_cast<double>(rand()) / RAND_MAX;
         double dr = 1e9;
-        double semiMajorAxis = inner_radius +
+        //TODO: fix this Martin!
+        semiMajorAxis = inner_radius +
                 dr * (pow((rand_num*(sqrt(outer_radius) - sqrt(inner_radius)) + sqrt(inner_radius)),2) - inner_radius)/dr;
 
         // Generate a random angle for uniform distribution around the disk
@@ -122,10 +122,10 @@ Particle createParticle() {
     } while (!positionOK);
 
     // Generate a random eccentricity for each particle
-    double eccentricity = dis_eccentricity(gen);
+//    double eccentricity = dis_eccentricity(gen);
 
     // Calculate velocity for elliptical orbit
-    vel = get_velocity_elliptical_orbit(pos, eccentricity, mass);
+    vel = get_velocity_elliptical_orbit(pos, semiMajorAxis, mass);
 
     return Particle(pos, vel, {}, mass, radius);
     }
@@ -144,12 +144,10 @@ int main() {
     double semi_major = 0.2 * AU;
     double eccentricity = 0.5;
     double dis_com_focal_point = semi_major * (1 + eccentricity);
-    Vector3d star1Pos = Vector3d(dis_com_focal_point * cos(0), dis_com_focal_point * sin(0), 0);
-    Vector3d star1Vel = get_velocity_elliptical_orbit(star1Pos, 0.5, solarMass);
-//    Vector3d star1Vel = Vector3d::Zero();
-    Vector3d star2Pos = Vector3d(dis_com_focal_point * cos(PI), dis_com_focal_point * sin(PI), 0);
-    Vector3d star2Vel = get_velocity_elliptical_orbit(star2Pos, 0.5, solarMass);
-//    Vector3d star2Vel = Vector3d::Zero();
+    Vector3d star1Pos = Vector3d(dis_com_focal_point, 0, 0);
+    Vector3d star1Vel = get_velocity_elliptical_orbit(star1Pos, semi_major, solarMass);
+    Vector3d star2Pos = Vector3d(-1 * dis_com_focal_point, 0, 0);
+    Vector3d star2Vel = get_velocity_elliptical_orbit(star2Pos, semi_major, solarMass);
     p_list.push_back(Particle(star1Pos, star1Vel, {}, solarMass, 7e8));
     p_list.push_back(Particle(star2Pos, star2Vel, {}, solarMass, 7e8));
 
