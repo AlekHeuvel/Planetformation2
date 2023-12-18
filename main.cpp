@@ -68,7 +68,7 @@ bool isTooClose(const Vector3d& pos, const vector<Particle>& particles, double m
 double kineticEnergy(const vector<Particle>& particles) {
     double E = 0;
     for (const auto& particle : particles) {
-        E += 0.5 * particle.mass * particle.velocity.norm();
+        E += 0.5 * particle.mass * particle.velocity.squaredNorm();
     }
     return E;
 }
@@ -166,8 +166,8 @@ int main() {
 
         // Initial half-step velocity update
         #pragma omp parallel for
-        for (int j = 0; j < p_list.size(); j++) {
-            p_list[j].velocity += p_list[j].force / p_list[j].mass * 0.5*dt;
+        for (auto & j : p_list) {
+            j.velocity += j.force / j.mass * 0.5*dt;
         }
 
         // Full-step position update
@@ -176,23 +176,17 @@ int main() {
             particle.position += particle.velocity * dt;
         }
 
-        // Recalculate forces
-        root.rebuildTree(p_list);
-        if (i > 2000){
-            p_list = root.collideParticles();
-        }
-        // Additional steps such as collision handling or tree building
         root.rebuildTree(p_list);
 
         #pragma omp parallel for
-        for (int j = 0; j < p_list.size(); j++) {
-            p_list[j].force = root.getForceWithParticle(p_list[j]);
+        for (auto & j : p_list) {
+            j.force = root.getForceWithParticle(j);
         }
 
         // Final half-step velocity update
         #pragma omp parallel for
-        for (int j = 0; j < p_list.size(); j++) {
-            p_list[j].velocity += p_list[j].force / p_list[j].mass * 0.5*dt;
+        for (auto & j : p_list) {
+            j.velocity += j.force / j.mass * 0.5*dt;
         }
 
         // Recalculate forces
@@ -211,14 +205,14 @@ int main() {
         t += dt;
 
         saveParticlesToCSV(p_list, "data.csv", i);
-        if(i % 10 == 0) {
+        if(i % 50 == 0) {
             cout << i << endl;
-//            cout << "Force: " << p_list[1].force << endl;
-//            cout << "Total energy: " << totalEnergy(p_list) << endl;
-//            cout << "Angular momentum: " << angularMomentum(p_list).norm() << endl;
+            cout << "Total energy: " << totalEnergy(p_list) << endl;
+            cout << "Angular momentum: " << angularMomentum(p_list) << endl;
+
+            auto end = chrono::high_resolution_clock::now();
+            cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
         }
     }
 
-    auto end = chrono::high_resolution_clock::now();
-    cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
 }
