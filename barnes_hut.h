@@ -11,7 +11,7 @@ using namespace Eigen;
 const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
-const double THETA = 0; // Radians
+const double THETA = 0.5; // Radians
 const double density = 3e3; //bulk density kg/m^3
 const double PI = 3.14159265358979323846264338;
 
@@ -157,29 +157,42 @@ public:
 
     vector<Particle> collideParticles() {
         vector<Particle> newParticles;
-        // Check if all child nodes have more than 1 particle
+
         if (all_of(children.begin(), children.end(), [](Node& child) { return child.particles.size() != 1; })) {
             for (Node& child : children) {
                 vector<Particle> childParticles = child.collideParticles();
                 newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
             }
-            return newParticles;
-        }
+        } else {
+            // Copy particles to a temporary list for safe iteration and modification
+            vector<Particle> tempParticles = particles;
 
-        for (int i = 0; i < particles.size(); i++) {
-            for (int j = i; j < particles.size(); j++) {
-                // if p_list collide break
-                if (haveCollided(particles[i], particles[j])) {
-                    Particle newParticle = mergeParticles(particles[i], particles[j]);
-                    particles.erase(particles.begin() + i);
-                    particles.erase(particles.begin() + j);
-                    particles.insert(particles.begin() + i, newParticle);
-                    break;
+            while (!tempParticles.empty()) {
+                Particle currentParticle = tempParticles.back();
+                tempParticles.pop_back();
+                bool collided = false;
+
+                for (auto it = tempParticles.begin(); it != tempParticles.end(); ) {
+                    if (haveCollided(currentParticle, *it)) {
+                        currentParticle = mergeParticles(currentParticle, *it);
+                        it = tempParticles.erase(it); // Erase and get next iterator
+                        collided = true;
+                    } else {
+                        ++it;
+                    }
+                }
+
+                if (collided) {
+                    // If collision occurred, add the merged particle
+                    newParticles.push_back(currentParticle);
+                } else {
+                    // If no collision, add the original particle
+                    newParticles.push_back(currentParticle);
                 }
             }
         }
 
-        return particles;
+        return newParticles;
     }
 
 

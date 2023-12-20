@@ -23,7 +23,7 @@ const double planetesimal_mass = planetesimal_mass_total / n_planetesimals;
 
 const double AU = 149.6e9;
 const double ROOT_SIZE = 10 * AU;
-const double inner_radius = 1 * AU; // Define the inner radius of the disk
+const double inner_radius = 4 * AU; // Define the inner radius of the disk
 const double outer_radius = 5 * AU; // Define the outer radius of the disk
 
 vector<Particle> p_list = {};
@@ -214,7 +214,10 @@ int main() {
         }
 
 
+        root.rebuildTree(p_list);
         p_list = root.collideParticles();
+
+
 
 
 
