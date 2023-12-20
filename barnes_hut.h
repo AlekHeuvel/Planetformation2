@@ -157,32 +157,31 @@ public:
 
     vector<Particle> collideParticles() {
         vector<Particle> newParticles;
+        // Check if all child nodes have more than 1 particle
+        if (all_of(children.begin(), children.end(), [](Node& child) { return child.particles.size() != 1; })) {
+            for (Node& child : children) {
+                vector<Particle> childParticles = child.collideParticles();
+                newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
+            }
+            return newParticles;
+        }
 
-        // Check for collisions within the current node
-        for (int i = 0; i < particles.size(); ++i) {
-            for (int j = i + 1; j < particles.size(); ++j) {
+        for (int i = 0; i < particles.size(); i++) {
+            for (int j = i; j < particles.size(); j++) {
+                // if p_list collide break
                 if (haveCollided(particles[i], particles[j])) {
-                    Particle newParticle = mergeParticles(particles[i], particles[j]);
-                    newParticles.push_back(newParticle);
-                    particles.erase(particles.begin() + j);
                     particles.erase(particles.begin() + i);
-                    --i; // Adjust index after erasing
+                    particles.erase(particles.begin() + j);
+                    Particle newParticle = mergeParticles(particles[i], particles[j]);
+                    particles.insert(particles.begin() + i, newParticle);
                     break;
                 }
             }
         }
 
-        // Add remaining particles that did not collide
-        newParticles.insert(newParticles.end(), particles.begin(), particles.end());
-
-        // Check for collisions in child nodes
-        for (Node& child : children) {
-            vector<Particle> childParticles = child.collideParticles();
-            newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
-        }
-
-        return newParticles;
+        return particles;
     }
+
 
     static bool haveCollided(const Particle& particle1, const Particle& particle2) {
         Vector3d dx = particle1.position - particle2.position;

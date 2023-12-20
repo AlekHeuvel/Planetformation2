@@ -213,9 +213,9 @@ int main() {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
         }
 
-        if (i > 500){
-            p_list = root.collideParticles();
-        }
+
+        p_list = root.collideParticles();
+
 
 
         // Time increment
