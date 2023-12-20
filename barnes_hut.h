@@ -12,7 +12,7 @@ const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
 const double THETA = 0.5; // Radians
-const double density = 3e3; //bulk density kg/m^3
+const double density = 1e3; //bulk density kg/m^3
 const double PI = 3.14159265358979323846264338;
 
 struct Particle {
@@ -137,7 +137,8 @@ public:
             double distance = r.norm();
 
             // Softening factor (epsilon), choose an appropriate value
-            const double epsilon = 1e8; // Example value, adjust as needed
+            const double epsilon = 1.2*particle.radius;
+
 
             // Modified gravitational force equation with softening
             return -G * mass * particle.mass * r / (pow(distance * distance + epsilon * epsilon, 1.5));
@@ -146,41 +147,50 @@ public:
 
     static Particle mergeParticles(const Particle& p1, const Particle& p2) {
         double totalMass = p1.mass + p2.mass;
-        Vector3d newPosition = ((p1.position+p1.velocity*dt) * p1.mass + (p2.position+p2.velocity*dt) * p2.mass) / totalMass;
-        Vector3d newVelocity = ((p1.force + p2.force) * dt + p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
+
+        // Calculate new position based on center of mass
+        Vector3d newPosition = (p1.position * p1.mass + p2.position * p2.mass) / totalMass;
+
+        // Calculate new velocity based on conservation of momentum
+        Vector3d newVelocity = (p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
 
         // Assuming radius is proportional to the cube root of mass
-        double newRadius = pow(3/(4 * PI * density) * totalMass, 1.0/3.0);
+        double newRadius = pow(3 / (4 * PI * density) * totalMass, 1.0 / 3.0);
 
         return Particle(newPosition, newVelocity, {}, totalMass, newRadius);
     }
 
+
     vector<Particle> collideParticles() {
         vector<Particle> newParticles;
-        // Check if all child nodes have more than 1 particle
+
         if (all_of(children.begin(), children.end(), [](Node& child) { return child.particles.size() != 1; })) {
             for (Node& child : children) {
                 vector<Particle> childParticles = child.collideParticles();
                 newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
             }
-            return newParticles;
-        }
+        } else {
+            int i = 0;
+            while (i < particles.size()) {
+                bool collisionOccurred = false;
+                for (int j = i + 1; j < particles.size(); j++) {
+                    if (haveCollided(particles[i], particles[j])) {
+                        Particle newParticle = mergeParticles(particles[i], particles[j]);
+                        particles[i] = newParticle;  // Replace the first particle with the merged particle
+                        particles.erase(particles.begin() + j);  // Remove the second particle
+                        collisionOccurred = true;
+                        break;
+                    }
+                }
 
-        for (int i = 0; i < particles.size(); i++) {
-            for (int j = i; j < particles.size(); j++) {
-                // if p_list collide break
-                if (haveCollided(particles[i], particles[j])) {
-                    Particle newParticle = mergeParticles(particles[i], particles[j]);
-                    particles.erase(particles.begin() + i);
-                    particles.erase(particles.begin() + j);
-
-                    particles.push_back(newParticle);
-                    break;
+                if (!collisionOccurred) {
+                    newParticles.push_back(particles[i]);
+                    i++;
                 }
             }
         }
 
-        return particles;
+        return newParticles;
     }
 
 
@@ -215,7 +225,6 @@ public:
     }
 
 private:
-    int idx;
     Vector3d lowerBound;
     Vector3d upperBound;
     double size;

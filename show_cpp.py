@@ -14,7 +14,7 @@ AU = 149.6e9
 EarthMass = 5.972e24
 
 # Function to convert simulation coordinates to screen coordinates
-def to_screen_coords(pos, scale=2*AU / height):
+def to_screen_coords(pos, scale=4*AU / height):
     coords = int(width / 2 + pos[0] / scale), int(height / 2 - pos[1] / scale)
     return coords
 

@@ -22,9 +22,9 @@ const double planetesimal_mass_total = 0.0222 * earthMass;
 const double planetesimal_mass = planetesimal_mass_total / n_planetesimals;
 
 const double AU = 149.6e9;
-const double ROOT_SIZE = 10 * AU;
-const double inner_radius = 0.8 * AU; // Define the inner radius of the disk
-const double outer_radius = 1.2 * AU; // Define the outer radius of the disk
+const double ROOT_SIZE = 100 * AU;
+const double inner_radius = 2 * AU; // Define the inner radius of the disk
+const double outer_radius = 3 * AU; // Define the outer radius of the disk
 
 vector<Particle> p_list = {};
 
@@ -186,6 +186,15 @@ int main() {
     Vector3d starVel = Vector3d::Zero();
     p_list.push_back(Particle(starPos, starVel, {}, solarMass, 7e8));
 
+    Vector3d totalMomentum(0, 0, 0);
+    for (const auto& particle : p_list) {
+        totalMomentum += particle.mass * particle.velocity;
+    }
+
+    Particle& star = p_list.back();
+    Vector3d momentumAdjustment = -totalMomentum / star.mass;
+    star.velocity += momentumAdjustment;
+
     // Setting up timing and time steps
     double t = 0;
     auto start = chrono::high_resolution_clock::now();
@@ -200,13 +209,30 @@ int main() {
         particle.force = root.getForceWithParticle(particle);
     }
 
+    for (auto &particle : p_list) {
+        particle.velocity += particle.force / particle.mass * 0.5 * dt;
+
+    }
+
     omp_set_num_threads(10);
     // Simulation loop
     for (int i = 0; i < 50000000000; i++) {
+
+//        Vector3d totalMomentum(0, 0, 0);
+//        for (const auto& particle : p_list) {
+//            totalMomentum += particle.mass * particle.velocity;
+//        }
+//        cout << totalMomentum << endl;
         // Initial half-step velocity update
 #pragma omp parallel for
         for (auto &particle : p_list) {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
+
+            const double maxVelocity = 3e6;
+            if (particle.velocity.norm() > maxVelocity) {
+                particle.velocity = particle.velocity.normalized() * maxVelocity;
+                cout << "True" << endl;
+            }
         }
 
         // Full-step position update
@@ -226,12 +252,20 @@ int main() {
 #pragma omp parallel for
         for (auto &particle : p_list) {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
+
+            const double maxVelocity = 3e6;
+            if (particle.velocity.norm() > maxVelocity) {
+                particle.velocity = particle.velocity.normalized() * maxVelocity;
+                cout << "True" << endl;
+            }
         }
+
 
 
         root.rebuildTree(p_list);
         p_list = root.collideParticles();
-        root.rebuildTree(p_list);
+
+
 
 
 
