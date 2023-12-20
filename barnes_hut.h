@@ -170,9 +170,9 @@ public:
             for (int j = i; j < particles.size(); j++) {
                 // if p_list collide break
                 if (haveCollided(particles[i], particles[j])) {
+                    Particle newParticle = mergeParticles(particles[i], particles[j]);
                     particles.erase(particles.begin() + i);
                     particles.erase(particles.begin() + j);
-                    Particle newParticle = mergeParticles(particles[i], particles[j]);
                     particles.insert(particles.begin() + i, newParticle);
                     break;
                 }
