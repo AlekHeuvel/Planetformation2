@@ -23,8 +23,8 @@ const double planetesimal_mass = planetesimal_mass_total / n_planetesimals;
 
 const double AU = 149.6e9;
 const double ROOT_SIZE = 10 * AU;
-const double inner_radius = 4 * AU; // Define the inner radius of the disk
-const double outer_radius = 5 * AU; // Define the outer radius of the disk
+const double inner_radius = 0.8 * AU; // Define the inner radius of the disk
+const double outer_radius = 1.2 * AU; // Define the outer radius of the disk
 
 vector<Particle> p_list = {};
 
@@ -43,6 +43,15 @@ Vector3d get_velocity_elliptical_orbit_sun(const Vector3d& position, double semi
 Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double semiMajorAxis) {
     double radius = position.norm();
     double velocityMagnitude = sqrt(G * 2.0*solarMass *((2.0/ radius)-(1/semiMajorAxis)));
+
+    // Velocity is perpendicular to the position vector (circular orbit)
+    Vector3d velocity = velocityMagnitude * NORMAL_VECTOR.cross(position).normalized();
+    return velocity;
+}
+
+Vector3d get_velocity_circular_orbit(const Vector3d& position) {
+    double radius = position.norm();
+    double velocityMagnitude = sqrt(G * solarMass /radius);
 
     // Velocity is perpendicular to the position vector (circular orbit)
     Vector3d velocity = velocityMagnitude * NORMAL_VECTOR.cross(position).normalized();
@@ -133,9 +142,9 @@ Particle createParticle(const int i) {
 
         radius = pow(3/(4 * PI * density) * mass, 1.0/3.0);
 
-        vel = get_velocity_elliptical_orbit(pos,semiMajorAxis);
-        cout << pos.norm() << endl;
-        cout << vel.norm() << endl;
+        vel = get_velocity_circular_orbit(pos);
+        //cout << pos.norm() << endl;
+        //cout << vel.norm() << endl;
 
         // Check if the position is too close to other p_list
         positionOK = !isTooClose(pos, p_list, radius * 10); // Using 10 * radius as minimum distance
@@ -155,21 +164,27 @@ int main() {
     for (int i = 0; i < n_embryos; i++) {
         p_list.push_back(createParticle(0));
     }
-    // Create planetesimals
-    //for (int i = 0; i < n_planetesimals; i++) {
-    //    p_list.push_back(createParticle(1));
-    //}
+    //Create planetesimals
+    for (int i = 0; i < n_planetesimals; i++) {
+        p_list.push_back(createParticle(1));
+    }
 
     // Creating binary star system
-    double semi_major = 0.2 * AU;
-    double eccentricity = 0.5;
-    double dis_com_focal_point = semi_major * (1 + eccentricity);
-    Vector3d star1Pos = Vector3d(dis_com_focal_point, 0, 0);
-    Vector3d star1Vel = get_velocity_elliptical_orbit_sun(star1Pos, semi_major);
-    Vector3d star2Pos = Vector3d(-1 * dis_com_focal_point, 0, 0);
-    Vector3d star2Vel = get_velocity_elliptical_orbit_sun(star2Pos, semi_major);
-    p_list.push_back(Particle(star1Pos, star1Vel, {}, solarMass, 7e8));
-    p_list.push_back(Particle(star2Pos, star2Vel, {}, solarMass, 7e8));
+//    double semi_major = 0.23 * AU;
+//    double eccentricity = 0.52;
+//    double dis_com_focal_point = semi_major * (1 + eccentricity);
+//    Vector3d star1Pos = Vector3d(dis_com_focal_point, 0, 0);
+//    Vector3d star1Vel = get_velocity_elliptical_orbit_sun(star1Pos, semi_major);
+//    Vector3d star2Pos = Vector3d(-1 * dis_com_focal_point, 0, 0);
+//    Vector3d star2Vel = get_velocity_elliptical_orbit_sun(star2Pos, semi_major);
+//    p_list.push_back(Particle(star1Pos, star1Vel, {}, solarMass, 7e8));
+//    p_list.push_back(Particle(star2Pos, star2Vel, {}, solarMass, 7e8));
+
+    // Creating single star system
+
+    Vector3d starPos = Vector3d::Zero();
+    Vector3d starVel = Vector3d::Zero();
+    p_list.push_back(Particle(starPos, starVel, {}, solarMass, 7e8));
 
     // Setting up timing and time steps
     double t = 0;
@@ -187,7 +202,7 @@ int main() {
 
     omp_set_num_threads(10);
     // Simulation loop
-    for (int i = 0; i < 50000; i++) {
+    for (int i = 0; i < 50000000000; i++) {
         // Initial half-step velocity update
 #pragma omp parallel for
         for (auto &particle : p_list) {
@@ -216,7 +231,7 @@ int main() {
 
         root.rebuildTree(p_list);
         p_list = root.collideParticles();
-
+        root.rebuildTree(p_list);
 
 
 
@@ -224,8 +239,9 @@ int main() {
         // Time increment
         t += dt;
 
-        saveParticlesToCSV(p_list, "data.csv", i);
+
         if(i % 250 == 0) {
+            saveParticlesToCSV(p_list, "data.csv", i);
             cout << i << endl;
             cout << p_list.size() << endl;
             //cout << "Total energy: " << totalEnergy(p_list) << endl;

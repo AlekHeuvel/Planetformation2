@@ -3,6 +3,9 @@ import pandas as pd
 
 # Pygame setup
 pygame.init()
+pygame.font.init()
+font = pygame.font.SysFont(None, 30)
+
 width, height = 1400, 750
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Particle Simulation")
@@ -11,7 +14,7 @@ AU = 149.6e9
 EarthMass = 5.972e24
 
 # Function to convert simulation coordinates to screen coordinates
-def to_screen_coords(pos, scale=14*AU / height):
+def to_screen_coords(pos, scale=2*AU / height):
     coords = int(width / 2 + pos[0] / scale), int(height / 2 - pos[1] / scale)
     return coords
 
@@ -52,6 +55,9 @@ while running:
         r = (particle[7] / EarthMass) ** (1 / 3) * 10
         r = min(5, r)
         pygame.draw.circle(screen, (255, 0, 0), particle_pos, r)
+
+    text_surface = font.render(f"Timestep: {timestep}", True, (255, 255, 255))
+    screen.blit(text_surface, (10, 10))
 
     pygame.display.flip()
 

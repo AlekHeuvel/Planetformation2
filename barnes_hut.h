@@ -157,42 +157,30 @@ public:
 
     vector<Particle> collideParticles() {
         vector<Particle> newParticles;
-
+        // Check if all child nodes have more than 1 particle
         if (all_of(children.begin(), children.end(), [](Node& child) { return child.particles.size() != 1; })) {
             for (Node& child : children) {
                 vector<Particle> childParticles = child.collideParticles();
                 newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
             }
-        } else {
-            // Copy particles to a temporary list for safe iteration and modification
-            vector<Particle> tempParticles = particles;
+            return newParticles;
+        }
 
-            while (!tempParticles.empty()) {
-                Particle currentParticle = tempParticles.back();
-                tempParticles.pop_back();
-                bool collided = false;
+        for (int i = 0; i < particles.size(); i++) {
+            for (int j = i; j < particles.size(); j++) {
+                // if p_list collide break
+                if (haveCollided(particles[i], particles[j])) {
+                    Particle newParticle = mergeParticles(particles[i], particles[j]);
+                    particles.erase(particles.begin() + i);
+                    particles.erase(particles.begin() + j);
 
-                for (auto it = tempParticles.begin(); it != tempParticles.end(); ) {
-                    if (haveCollided(currentParticle, *it)) {
-                        currentParticle = mergeParticles(currentParticle, *it);
-                        it = tempParticles.erase(it); // Erase and get next iterator
-                        collided = true;
-                    } else {
-                        ++it;
-                    }
-                }
-
-                if (collided) {
-                    // If collision occurred, add the merged particle
-                    newParticles.push_back(currentParticle);
-                } else {
-                    // If no collision, add the original particle
-                    newParticles.push_back(currentParticle);
+                    particles.push_back(newParticle);
+                    break;
                 }
             }
         }
 
-        return newParticles;
+        return particles;
     }
 
 
