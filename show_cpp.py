@@ -11,7 +11,7 @@ AU = 149.6e9
 EarthMass = 5.972e24
 
 # Function to convert simulation coordinates to screen coordinates
-def to_screen_coords(pos, scale=10*AU / height):
+def to_screen_coords(pos, scale=14*AU / height):
     coords = int(width / 2 + pos[0] / scale), int(height / 2 - pos[1] / scale)
     return coords
 
@@ -21,7 +21,7 @@ def read_particle_data(filename):
     df.columns = ['Timestep', 'PosX', 'PosY', 'PosZ', 'VelX', 'VelY', 'VelZ', 'Mass']
     return df
 
-data = read_particle_data("cmake-build-debug/data.csv")
+data = read_particle_data("cmake-build-release/data.csv")
 unique_timesteps = data['Timestep'].unique()  # Get unique timesteps
 
 running = True

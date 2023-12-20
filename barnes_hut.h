@@ -11,7 +11,7 @@ using namespace Eigen;
 const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
-const double THETA = 0.5; // Radians
+const double THETA = 0; // Radians
 const double density = 3e3; //bulk density kg/m^3
 const double PI = 3.14159265358979323846264338;
 
@@ -137,7 +137,7 @@ public:
             double distance = r.norm();
 
             // Softening factor (epsilon), choose an appropriate value
-            const double epsilon = 0; // Example value, adjust as needed
+            const double epsilon = 1e8; // Example value, adjust as needed
 
             // Modified gravitational force equation with softening
             return -G * mass * particle.mass * r / (pow(distance * distance + epsilon * epsilon, 1.5));
@@ -157,29 +157,31 @@ public:
 
     vector<Particle> collideParticles() {
         vector<Particle> newParticles;
-        // Check if all child nodes have more than 1 particle
-        if (all_of(children.begin(), children.end(), [](Node& child) { return child.particles.size() != 1; })) {
-            for (Node& child : children) {
-                vector<Particle> childParticles = child.collideParticles();
-                newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
-            }
-            return newParticles;
-        }
 
-        for (int i = 0; i < particles.size(); i++) {
-            for (int j = i; j < particles.size(); j++) {
-                // if p_list collide break
+        // Check for collisions within the current node
+        for (int i = 0; i < particles.size(); ++i) {
+            for (int j = i + 1; j < particles.size(); ++j) {
                 if (haveCollided(particles[i], particles[j])) {
-                    particles.erase(particles.begin() + i);
-                    particles.erase(particles.begin() + j);
                     Particle newParticle = mergeParticles(particles[i], particles[j]);
-                    particles.insert(particles.begin() + i, newParticle);
+                    newParticles.push_back(newParticle);
+                    particles.erase(particles.begin() + j);
+                    particles.erase(particles.begin() + i);
+                    --i; // Adjust index after erasing
                     break;
                 }
             }
         }
 
-        return particles;
+        // Add remaining particles that did not collide
+        newParticles.insert(newParticles.end(), particles.begin(), particles.end());
+
+        // Check for collisions in child nodes
+        for (Node& child : children) {
+            vector<Particle> childParticles = child.collideParticles();
+            newParticles.insert(newParticles.end(), childParticles.begin(), childParticles.end());
+        }
+
+        return newParticles;
     }
 
     static bool haveCollided(const Particle& particle1, const Particle& particle2) {

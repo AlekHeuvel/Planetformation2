@@ -12,21 +12,25 @@ using namespace std;
 using namespace Eigen;
 
 // Define all variables
-const int n_particles = 10;
 const double solarMass = 1.989e30;
 const double earthMass = 5.972e24;
+const int n_embryos = 300;
+const double embryo_mass_total =15.0 * earthMass;
+const double embryo_mass = embryo_mass_total / n_embryos;
+const int n_planetesimals = 10;
+const double planetesimal_mass_total = 0.0222 * earthMass;
+const double planetesimal_mass = planetesimal_mass_total / n_planetesimals;
+
 const double AU = 149.6e9;
 const double ROOT_SIZE = 10 * AU;
-const double inner_radius = 4 * AU; // Define the inner radius of the disk
+const double inner_radius = 1 * AU; // Define the inner radius of the disk
 const double outer_radius = 5 * AU; // Define the outer radius of the disk
 
 vector<Particle> p_list = {};
 
 std::random_device rd;  // Obtain a random number from hardware
 std::mt19937 gen(rd()); // Seed the generator
-std::uniform_real_distribution<> dis_eccentricity(0.0, 0.01); // Eccentricity range
 std::uniform_real_distribution<> dis_angle(0.0, 2 * PI); // Angle range
-std::uniform_real_distribution<> embryo_mass(0.01*earthMass, 0.11*earthMass);
 
 const Vector3d NORMAL_VECTOR(0, 0, 1);
 
@@ -102,7 +106,7 @@ Vector3d angularMomentum(vector<Particle>& particles) {
     return L;
 }
 
-Particle createParticle() {
+Particle createParticle(const int i) {
     Vector3d pos, vel;
     double mass, radius;
     bool positionOK;
@@ -120,7 +124,13 @@ Particle createParticle() {
         // Calculate position in Cartesian coordinates
         pos = Vector3d(semiMajorAxis * cos(angle), semiMajorAxis * sin(angle), 0);
 
-        mass = embryo_mass(gen);
+        if (i == 0){
+            mass = embryo_mass;
+        }
+        else {
+            mass = planetesimal_mass;
+        }
+
         radius = pow(3/(4 * PI * density) * mass, 1.0/3.0);
 
         vel = get_velocity_elliptical_orbit(pos,semiMajorAxis);
@@ -141,10 +151,14 @@ int main() {
     ofstream file("data.csv");
     file.close();
 
-    // Create p_list
-    for (int i = 0; i < n_particles; i++) {
-        p_list.push_back(createParticle());
+    // Create embryos
+    for (int i = 0; i < n_embryos; i++) {
+        p_list.push_back(createParticle(0));
     }
+    // Create planetesimals
+    //for (int i = 0; i < n_planetesimals; i++) {
+    //    p_list.push_back(createParticle(1));
+    //}
 
     // Creating binary star system
     double semi_major = 0.2 * AU;
@@ -199,14 +213,20 @@ int main() {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
         }
 
+        if (i > 500){
+            p_list = root.collideParticles();
+        }
+
+
         // Time increment
         t += dt;
 
         saveParticlesToCSV(p_list, "data.csv", i);
         if(i % 250 == 0) {
             cout << i << endl;
-            cout << "Total energy: " << totalEnergy(p_list) << endl;
-            cout << "Angular momentum: " << angularMomentum(p_list) << endl;
+            cout << p_list.size() << endl;
+            //cout << "Total energy: " << totalEnergy(p_list) << endl;
+            //cout << "Angular momentum: " << angularMomentum(p_list) << endl;
 
             auto end = chrono::high_resolution_clock::now();
             cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
