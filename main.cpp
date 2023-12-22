@@ -14,17 +14,16 @@ using namespace Eigen;
 // Define all variables
 const double solarMass = 1.989e30;
 const double earthMass = 5.972e24;
-const int n_embryos = 300;
-const double embryo_mass_total =15.0 * earthMass;
-const double embryo_mass = embryo_mass_total / n_embryos;
-const int n_planetesimals = 10;
-const double planetesimal_mass_total = 0.0222 * earthMass;
-const double planetesimal_mass = planetesimal_mass_total / n_planetesimals;
+const int nEmbryos = 400;
+const double embryoMass = 15.0 * earthMass / nEmbryos;
+const int nPlanetesimals = 50;
+const double planetesimalMass = 0.0222 * earthMass / nPlanetesimals;
 
 const double AU = 149.6e9;
-const double ROOT_SIZE = 100 * AU;
+const double ROOT_SIZE = 20 * AU;
 const double inner_radius = 2 * AU; // Define the inner radius of the disk
 const double outer_radius = 3 * AU; // Define the outer radius of the disk
+const double maxVelocity = 3e6;
 
 vector<Particle> p_list = {};
 
@@ -115,7 +114,7 @@ Vector3d angularMomentum(vector<Particle>& particles) {
     return L;
 }
 
-Particle createParticle(const int i) {
+Particle createParticle(double m) {
     Vector3d pos, vel;
     double mass, radius;
     bool positionOK;
@@ -132,25 +131,13 @@ Particle createParticle(const int i) {
 
         // Calculate position in Cartesian coordinates
         pos = Vector3d(semiMajorAxis * cos(angle), semiMajorAxis * sin(angle), 0);
-
-        if (i == 0){
-            mass = embryo_mass;
-        }
-        else {
-            mass = planetesimal_mass;
-        }
-
+        mass = m;
         radius = pow(3/(4 * PI * density) * mass, 1.0/3.0);
-
         vel = get_velocity_circular_orbit(pos);
-        //cout << pos.norm() << endl;
-        //cout << vel.norm() << endl;
 
         // Check if the position is too close to other p_list
         positionOK = !isTooClose(pos, p_list, radius * 10); // Using 10 * radius as minimum distance
     } while (!positionOK);
-
-
 
     return Particle(pos, vel, {}, mass, radius);
 }
@@ -161,12 +148,12 @@ int main() {
     file.close();
 
     // Create embryos
-    for (int i = 0; i < n_embryos; i++) {
-        p_list.push_back(createParticle(0));
+    for (int i = 0; i < nEmbryos; i++) {
+        p_list.push_back(createParticle(embryoMass));
     }
     //Create planetesimals
-    for (int i = 0; i < n_planetesimals; i++) {
-        p_list.push_back(createParticle(1));
+    for (int i = 0; i < nPlanetesimals; i++) {
+        p_list.push_back(createParticle(planetesimalMass));
     }
 
     // Creating binary star system
@@ -214,21 +201,15 @@ int main() {
 
     }
 
-    omp_set_num_threads(10);
+    omp_set_num_threads(6);
     // Simulation loop
-    for (int i = 0; i < 50000000000; i++) {
+    for (int i = 0; i < 2000; i++) {
 
-//        Vector3d totalMomentum(0, 0, 0);
-//        for (const auto& particle : p_list) {
-//            totalMomentum += particle.mass * particle.velocity;
-//        }
-//        cout << totalMomentum << endl;
         // Initial half-step velocity update
-#pragma omp parallel for
+        #pragma omp parallel for
         for (auto &particle : p_list) {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
 
-            const double maxVelocity = 3e6;
             if (particle.velocity.norm() > maxVelocity) {
                 particle.velocity = particle.velocity.normalized() * maxVelocity;
                 cout << "True" << endl;
@@ -236,20 +217,20 @@ int main() {
         }
 
         // Full-step position update
-#pragma omp parallel for
+        #pragma omp parallel for
         for (Particle &particle : p_list) {
             particle.position += particle.velocity * dt;
         }
 
         // Recalculate forces after position update
         root.rebuildTree(p_list);
-#pragma omp parallel for
+        #pragma omp parallel for
         for (Particle &particle : p_list) {
             particle.force = root.getForceWithParticle(particle);
         }
 
         // Final half-step velocity update
-#pragma omp parallel for
+        #pragma omp parallel for
         for (auto &particle : p_list) {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
 
@@ -260,30 +241,20 @@ int main() {
             }
         }
 
-
-
         root.rebuildTree(p_list);
         p_list = root.collideParticles();
 
-
-
-
-
-
-        // Time increment
         t += dt;
 
+        saveParticlesToCSV(p_list, "data.csv", i);
+        if(i % 50 == 0) {
+//            cout << i << endl;
+//            cout << "Total energy: " << totalEnergy(p_list) << endl;
+//            cout << "Angular momentum: " << angularMomentum(p_list) << endl;
 
-        if(i % 250 == 0) {
-            saveParticlesToCSV(p_list, "data.csv", i);
-            cout << i << endl;
-            cout << p_list.size() << endl;
-            //cout << "Total energy: " << totalEnergy(p_list) << endl;
-            //cout << "Angular momentum: " << angularMomentum(p_list) << endl;
-
-            auto end = chrono::high_resolution_clock::now();
-            cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
         }
     }
+    auto end = chrono::high_resolution_clock::now();
+    cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
 
 }
