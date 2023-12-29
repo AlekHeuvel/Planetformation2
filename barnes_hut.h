@@ -11,8 +11,8 @@ using namespace Eigen;
 const int dt = 4e5;
 const int DIM = 3;
 const double G = 6.67408e-11;
-const double THETA = 0.5; // Radians
-const double density = 1e3; //bulk density kg/m^3
+const double THETA = 0; // Radians
+const double density = 3e3; //bulk density kg/m^3
 const double PI = 3.14159265358979323846264338;
 
 struct Particle {
@@ -137,7 +137,7 @@ public:
             double distance = r.norm();
 
             // Softening factor (epsilon), choose an appropriate value
-            const double epsilon = 1.2*particle.radius;
+            const double epsilon = 1e7;
 
 
             // Modified gravitational force equation with softening
@@ -147,17 +147,14 @@ public:
 
     static Particle mergeParticles(const Particle& p1, const Particle& p2) {
         double totalMass = p1.mass + p2.mass;
-
-        // Calculate new position based on center of mass
-        Vector3d newPosition = (p1.position * p1.mass + p2.position * p2.mass) / totalMass;
-
-        // Calculate new velocity based on conservation of momentum
-        Vector3d newVelocity = (p1.velocity * p1.mass + p2.velocity * p2.mass) / totalMass;
+        Vector3d totalMomentum = p1.mass * p1.velocity + p2.mass * p2.velocity; // Total momentum
+        Vector3d newVelocity = totalMomentum / totalMass; // New velocity based on momentum conservation
+        Vector3d newPosition = (p1.position * p1.mass + p2.position * p2.mass) / totalMass; // Mass-weighted average position
 
         // Assuming radius is proportional to the cube root of mass
-        double newRadius = pow(3 / (4 * PI * density) * totalMass, 1.0 / 3.0);
+        double newRadius = pow(3/(4 * PI * density) * totalMass, 1.0/3.0);
 
-        return Particle(newPosition, newVelocity, {}, totalMass, newRadius);
+        return Particle(newPosition, newVelocity, Vector3d::Zero(), totalMass, newRadius);
     }
 
 
@@ -175,6 +172,8 @@ public:
                 bool collisionOccurred = false;
                 for (int j = i + 1; j < particles.size(); j++) {
                     if (haveCollided(particles[i], particles[j])) {
+
+
                         Particle newParticle = mergeParticles(particles[i], particles[j]);
                         particles[i] = newParticle;  // Replace the first particle with the merged particle
                         particles.erase(particles.begin() + j);  // Remove the second particle
