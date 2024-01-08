@@ -22,6 +22,8 @@ const double planetesimal_mass = 0.0222 * earthMass;
 const double embryo_mass =15 * planetesimal_mass;
 //const double planetesimal_mass = planetesimal_mass_total / n_planetesimals;
 
+const double inclination = 30 * PI / 180;
+
 const double AU = 149.6e9;
 const double ROOT_SIZE = 25 * AU;
 const double inner_radius = 2 * AU; // Define the inner radius of the disk
@@ -34,6 +36,18 @@ std::mt19937 gen(rd()); // Seed the generator
 std::uniform_real_distribution<> dis_angle(0.0, 2 * PI); // Angle range
 
 const Vector3d NORMAL_VECTOR(0, 0, 1);
+
+Vector3d rotateAroundXAxis(const Vector3d& original, double angle) {
+    double cosA = cos(angle);
+    double sinA = sin(angle);
+
+    // Rotate around x-axis
+    return Vector3d(
+            original.x(), // x doesn't change
+            original.y() * cosA - original.z() * sinA, // rotate y and z
+            original.y() * sinA + original.z() * cosA
+    );
+}
 
 Vector3d get_velocity_elliptical_orbit_sun(const Vector3d& position, double semiMajorAxis) {
     double velocityMagnitude = sqrt(G * (2.0*solarMass) * (1.0 / (2.0*position.norm()) - 1.0 / (4.0*semiMajorAxis)));
@@ -195,6 +209,11 @@ int main() {
     //Create planetesimals
     for (int i = 0; i < n_planetesimals; i++) {
         p_list.push_back(createParticle(1));
+    }
+
+    for (auto &particle : p_list) {
+        particle.position = rotateAroundXAxis(particle.position, inclination);
+        particle.velocity = rotateAroundXAxis(particle.velocity, inclination);
     }
 
     // Creating binary star system
