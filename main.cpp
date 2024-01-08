@@ -22,7 +22,7 @@ const double planetesimal_mass = 0.0222 * earthMass;
 const double embryo_mass =15 * planetesimal_mass;
 //const double planetesimal_mass = planetesimal_mass_total / n_planetesimals;
 
-const double inclination = 30 * PI / 180;
+const double inclination = 0 * PI / 180;
 
 const double AU = 149.6e9;
 const double ROOT_SIZE = 25 * AU;
@@ -217,7 +217,7 @@ int main() {
     }
 
     // Creating binary star system
-    double semi_major = 5 * AU; // >0.1 breekt //0.1-0.25 goed, //0.25-1.2 s-banen // 1.2-2.1 in disk s-banen// 2.1 - 4.5 out disk s-banen// >4.5 alles vliegt weg
+    double semi_major = 1.0 * AU; // >0.1 breekt //0.1-0.25 goed, //0.25-1.2 s-banen // 1.2-2.1 in disk s-banen// 2.1 - 4.5 out disk s-banen// >4.5 alles vliegt weg
     double eccentricity = 0.5;
     double dis_com_focal_point = semi_major * (1 + eccentricity);
     Vector3d star1Pos = Vector3d(dis_com_focal_point, 0, 0);
