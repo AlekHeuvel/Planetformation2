@@ -14,18 +14,19 @@ using namespace Eigen;
 // Define all variables
 const double solarMass = 1.989e30;
 const double earthMass = 5.972e24;
-const int n_embryos = 10;
+const int nEmbryos = 10;
 
-//const double embryo_mass = embryo_mass_total / n_embryos;
-const int n_planetesimals = 300;
-const double planetesimal_mass = 0.0222 * earthMass;
-const double embryo_mass =15 * planetesimal_mass;
-//const double planetesimal_mass = planetesimal_mass_total / n_planetesimals;
+//const double embryoMass = embryo_mass_total / nEmbryos;
+//const double planetesimalMass = planetesimal_mass_total / nPlanetesimals;
+const int nPlanetesimals = 300;
+const double planetesimalMass = 0.0222 * earthMass;
+const double embryoMass = 15 * planetesimalMass;
 
-const double inclination = 0 * PI / 180;
-
+const double inclination = 45 * PI / 180;
 const double AU = 149.6e9;
+
 const double ROOT_SIZE = 25 * AU;
+const double semiMajorAxisSun = 0.25 * AU;
 const double inner_radius = 2 * AU; // Define the inner radius of the disk
 const double outer_radius = 3 * AU; // Define the outer radius of the disk
 
@@ -49,13 +50,13 @@ Vector3d rotateAroundXAxis(const Vector3d& original, double angle) {
     );
 }
 
-Vector3d get_velocity_elliptical_orbit_sun(const Vector3d& position, double semiMajorAxis) {
+Vector3d getVelocityEllipticalOrbitSun(const Vector3d& position, double semiMajorAxis) {
     double velocityMagnitude = sqrt(G * (2.0*solarMass) * (1.0 / (2.0*position.norm()) - 1.0 / (4.0*semiMajorAxis)));
     Vector3d velocity = velocityMagnitude * NORMAL_VECTOR.cross(position).normalized();
     return velocity;
 }
 
-Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double semiMajorAxis) {
+Vector3d getVelocityEllipticalOrbit(const Vector3d& position, double semiMajorAxis) {
     double radius = position.norm();
     double velocityMagnitude = sqrt(G * 2.0*solarMass *((2.0/ radius)-(1/semiMajorAxis)));
 
@@ -64,7 +65,7 @@ Vector3d get_velocity_elliptical_orbit(const Vector3d& position, double semiMajo
     return velocity;
 }
 
-Vector3d get_velocity_circular_orbit(const Vector3d& position) {
+Vector3d getVelocityCircularOrbit(const Vector3d& position) {
     double radius = position.norm();
     double velocityMagnitude = sqrt(G * 2*solarMass /radius);
 
@@ -130,42 +131,38 @@ Vector3d angularMomentum(vector<Particle>& particles) {
     return L;
 }
 
-Particle createParticle(const int i) {
+Vector3d totalMomentum(vector<Particle>& particles) {
+    Vector3d totalMomentum = Vector3d::Zero();
+    for (const auto& particle : p_list) {
+        totalMomentum += particle.mass * particle.velocity;
+    }
+    return totalMomentum;
+}
+
+Particle createParticle(double mass) {
     Vector3d pos, vel;
-    double mass, radius;
-    bool positionOK;
-    double semiMajorAxis;
+    double radius;
+    double semiMajorAxis, angle;
+    double rand_num;
 
     do {
-        // Generate a random number for the power law distribution
-        double rand_num = static_cast<double>(rand()) / RAND_MAX;
+        // Generate a random num
+        // ber for the power law distribution
+        rand_num = static_cast<double>(rand()) / RAND_MAX;
         semiMajorAxis = inner_radius +
                         (pow((rand_num*(sqrt(outer_radius) - sqrt(inner_radius)) + sqrt(inner_radius)),2) - inner_radius);
 
         // Generate a random angle for uniform distribution around the disk
-        double angle = dis_angle(gen);
+        angle = dis_angle(gen);
 
         // Calculate position in Cartesian coordinates
         pos = Vector3d(semiMajorAxis * cos(angle), semiMajorAxis * sin(angle), 0);
 
-        if (i == 0){
-            mass = embryo_mass;
-        }
-        else {
-            mass = planetesimal_mass;
-        }
-
         radius = pow(3/(4 * PI * density) * mass, 1.0/3.0);
 
+    } while (isTooClose(pos, p_list, radius * 10));
 
-        //cout << pos.norm() << endl;
-        //cout << vel.norm() << endl;
-
-        // Check if the position is too close to other p_list
-        positionOK = !isTooClose(pos, p_list, radius * 10); // Using 10 * radius as minimum distance
-    } while (!positionOK);
-
-    vel = get_velocity_circular_orbit(pos);
+    vel = getVelocityCircularOrbit(pos);
 
     return Particle(pos, vel, {}, mass, radius);
 }
@@ -203,12 +200,12 @@ int main() {
     file.close();
 
     // Create embryos
-    for (int i = 0; i < n_embryos; i++) {
-        p_list.push_back(createParticle(0));
+    for (int i = 0; i < nEmbryos; i++) {
+        p_list.push_back(createParticle(embryoMass));
     }
     //Create planetesimals
-    for (int i = 0; i < n_planetesimals; i++) {
-        p_list.push_back(createParticle(1));
+    for (int i = 0; i < nPlanetesimals; i++) {
+        p_list.push_back(createParticle(planetesimalMass));
     }
 
     for (auto &particle : p_list) {
@@ -217,13 +214,12 @@ int main() {
     }
 
     // Creating binary star system
-    double semi_major = 1.0 * AU; // >0.1 breekt //0.1-0.25 goed, //0.25-1.2 s-banen // 1.2-2.1 in disk s-banen// 2.1 - 4.5 out disk s-banen// >4.5 alles vliegt weg
     double eccentricity = 0.5;
-    double dis_com_focal_point = semi_major * (1 + eccentricity);
+    double dis_com_focal_point = semiMajorAxisSun * (1 + eccentricity);
     Vector3d star1Pos = Vector3d(dis_com_focal_point, 0, 0);
-    Vector3d star1Vel = get_velocity_elliptical_orbit_sun(star1Pos, semi_major);
+    Vector3d star1Vel = getVelocityEllipticalOrbitSun(star1Pos, semiMajorAxisSun);
     Vector3d star2Pos = Vector3d(-1 * dis_com_focal_point, 0, 0);
-    Vector3d star2Vel = get_velocity_elliptical_orbit_sun(star2Pos, semi_major);
+    Vector3d star2Vel = getVelocityEllipticalOrbitSun(star2Pos, semiMajorAxisSun);
     p_list.push_back(Particle(star1Pos, star1Vel, {}, solarMass, 7e8));
     p_list.push_back(Particle(star2Pos, star2Vel, {}, solarMass, 7e8));
 
@@ -255,17 +251,11 @@ int main() {
 
     }
 
-
-
+    omp_set_num_threads(8);
     // Simulation loop
-    for (int i = 0; i < 50000000000; i++) {
+    for (int i = 0; i < 50000; i++) {
 
-//        Vector3d totalMomentum(0, 0, 0);
-//        for (const auto& particle : p_list) {
-//            totalMomentum += particle.mass * particle.velocity;
-//        }
-//        cout << totalMomentum << endl;
-        // Initial half-step velocity update
+
 #pragma omp parallel for
         for (auto &particle : p_list) {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
@@ -274,7 +264,6 @@ int main() {
 
         root.rebuildTree(p_list);
         p_list = root.collideParticles();
-        root.rebuildTree(p_list);
 
         // Recalculate forces after position update
         root.rebuildTree(p_list);
@@ -284,35 +273,14 @@ int main() {
             particle.velocity += particle.force / particle.mass * 0.5 * dt;
         }
 
-
-
-
-
-
-
-
-
-
         // Time increment
         t += dt;
 
         saveParticlesToCSV(p_list, "data.csv", i);
         if(i % 250 == 0) {
-            Vector3d totalMomentum = Vector3d::Zero();
-            for (const auto& particle : p_list) {
-                totalMomentum += particle.mass * particle.velocity;
-            }
-            cout << totalMomentum.transpose() << endl;
-
-
-            cout << i << endl;
-            cout << p_list.size() << endl;
-            //cout << "Total energy: " << totalEnergy(p_list) << endl;
-            //cout << "Angular momentum: " << angularMomentum(p_list) << endl;
 
             auto end = chrono::high_resolution_clock::now();
             cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
         }
     }
-
 }
